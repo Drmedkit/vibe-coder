@@ -111,7 +111,15 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Eerste keer inloggen? Je moet je wachtwoord wijzigen.</p>
+            <p>
+              Nog geen account?{' '}
+              <button
+                onClick={() => router.push('/register')}
+                className="text-[#E1014A] hover:underline"
+              >
+                Registreren
+              </button>
+            </p>
           </div>
         </div>
 

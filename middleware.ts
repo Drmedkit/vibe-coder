@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Public paths that don't need auth
-  if (path.startsWith('/login') || path.startsWith('/api/auth')) {
+  if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/api/auth')) {
     return NextResponse.next()
   }
 
