@@ -188,7 +188,7 @@ export default function Home() {
       <header className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0a0a0a] shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <Image src="/h20-logo.png" alt="H20 Logo" width={32} height={32} className="h-8 w-auto" />
+            <Image src="/h20-logo.png" alt="H20 Logo" width={48} height={48} className="h-12 w-auto" />
             <h1 className="font-bold text-base text-white">Vibe Coder</h1>
           </div>
         </div>
@@ -276,7 +276,7 @@ export default function Home() {
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
         {/* Left Panel: Code Editor or AI Chat */}
-        <section className="w-[40%] min-w-[320px] max-w-[50%] flex flex-col bg-gray-900">
+        <section className="w-[40%] min-w-[320px] max-w-[50%] flex flex-col bg-black">
           {activeTab === Language.CHAT ? (
             <ChatPanel
               messages={messages}

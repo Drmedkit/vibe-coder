@@ -32,9 +32,9 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">AI Assistent</h2>
+    <div className="flex flex-col h-full bg-black">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-900">
+        <h2 className="text-sm font-semibold text-white">AI Assistent</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -93,7 +93,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
         )}
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="bg-gray-800 rounded-lg px-4 py-3">
+            <div className="bg-gray-900 rounded-lg px-4 py-3 border border-gray-800">
               <Loader2 className="w-4 h-4 animate-spin text-[#E1014A]" />
             </div>
           </div>
@@ -101,14 +101,14 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-800">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-900">
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Vraag iets aan de AI..."
-            className="flex-1 bg-gray-800 text-gray-100 text-sm rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#E1014A]"
+            className="flex-1 bg-gray-900 text-gray-100 text-sm rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#E1014A] border border-gray-800"
             disabled={isProcessing}
           />
           <button
