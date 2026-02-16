@@ -261,19 +261,19 @@ function EditorContent() {
           </button>
           <button
             onClick={() => setActiveTab(Language.HTML)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.HTML ? 'bg-[#60C2D2] text-black' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.HTML ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <PanelRight size={12} /> HTML
           </button>
           <button
             onClick={() => setActiveTab(Language.CSS)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CSS ? 'bg-[#60C2D2] text-black' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CSS ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <FileType size={12} /> CSS
           </button>
           <button
             onClick={() => setActiveTab(Language.JAVASCRIPT)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.JAVASCRIPT ? 'bg-[#364B9B] text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.JAVASCRIPT ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <FileType size={12} /> JS
           </button>
