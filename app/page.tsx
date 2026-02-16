@@ -6,6 +6,7 @@ import { CodeEditor } from '@/components/CodeEditor'
 import { Preview } from '@/components/Preview'
 import { ChatPanel } from '@/components/ChatPanel'
 import { AssetLibrary } from '@/components/AssetLibrary'
+import Image from 'next/image'
 import {
   Code2,
   FileJson,
@@ -186,8 +187,8 @@ export default function Home() {
       {/* Top Bar */}
       <header className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0a0a0a] shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-[#E1014A]">
-            <Code2 className="w-5 h-5" />
+          <div className="flex items-center gap-3">
+            <Image src="/h20-logo.png" alt="H20 Logo" width={32} height={32} className="h-8 w-auto" />
             <h1 className="font-bold text-base text-white">Vibe Coder</h1>
           </div>
         </div>
