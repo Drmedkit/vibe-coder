@@ -182,49 +182,49 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden">
       {/* Top Bar */}
-      <header className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-gray-950 shrink-0">
+      <header className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0a0a0a] shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-blue-500">
+          <div className="flex items-center gap-2 text-[#E1014A]">
             <Code2 className="w-5 h-5" />
             <h1 className="font-bold text-base text-white">Vibe Coder</h1>
           </div>
         </div>
 
-        {/* Center Tabs */}
+        {/* Center Tabs - H20 Branded */}
         <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-lg border border-gray-800">
           <button
             onClick={() => setActiveTab(Language.CHAT)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CHAT ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CHAT ? 'bg-[#E1014A] text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <MessageSquare size={12} /> AI
           </button>
           <button
             onClick={() => setActiveTab(Language.HTML)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.HTML ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.HTML ? 'bg-[#60C2D2] text-black' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <Layout size={12} /> HTML
           </button>
           <button
             onClick={() => setActiveTab(Language.CSS)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CSS ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.CSS ? 'bg-[#60C2D2] text-black' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <FileType size={12} /> CSS
           </button>
           <button
             onClick={() => setActiveTab(Language.JAVASCRIPT)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.JAVASCRIPT ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.JAVASCRIPT ? 'bg-[#364B9B] text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
             <FileJson size={12} /> JS
           </button>
         </div>
 
-        {/* Right Controls */}
+        {/* Right Controls - H20 Branded */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleDownload}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#364B9B] hover:bg-[#2a3a7a] text-white text-xs font-medium transition-colors"
           >
             <Download size={14} />
             <span className="hidden sm:inline">Download</span>
@@ -232,14 +232,14 @@ export default function Home() {
 
           <button
             onClick={handleUpload}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-600 hover:bg-orange-500 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#364B9B] hover:bg-[#2a3a7a] text-white text-xs font-medium transition-colors"
           >
             <Upload size={14} />
             <span className="hidden sm:inline">Upload</span>
           </button>
 
           <button
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#60C2D2] hover:bg-[#4ba9b8] text-black text-xs font-medium transition-colors"
             title="Opslaan (komt binnenkort)"
           >
             <Save size={14} />
@@ -247,7 +247,7 @@ export default function Home() {
           </button>
 
           <button
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#FEC603] hover:bg-[#e5b103] text-black text-xs font-medium transition-colors"
             title="Delen (komt binnenkort)"
           >
             <Share2 size={14} />
@@ -256,7 +256,7 @@ export default function Home() {
 
           <button
             onClick={() => setIsAssetLibraryOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-pink-600 hover:bg-pink-500 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#E1014A] hover:bg-[#c1013d] text-white text-xs font-medium transition-colors"
             title="Maak afbeeldingen met AI"
           >
             <ImageIcon size={14} />
@@ -265,7 +265,7 @@ export default function Home() {
 
           <button
             onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-            className={`p-1.5 rounded-md transition-colors ${isPreviewOpen ? 'bg-blue-900/30 text-blue-400' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}
+            className={`p-1.5 rounded-md transition-colors ${isPreviewOpen ? 'bg-[#FEC603]/30 text-[#FEC603]' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}
           >
             <PanelRight size={18} />
           </button>

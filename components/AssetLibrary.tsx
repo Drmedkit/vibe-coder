@@ -75,7 +75,7 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-purple-400" />
+            <ImageIcon className="w-5 h-5 text-[#E1014A]" />
             <h2 className="text-lg font-semibold text-white">Asset Bibliotheek</h2>
           </div>
           <button
@@ -100,7 +100,7 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
                     onClick={() => setAssetType(type)}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       assetType === type
-                        ? 'bg-purple-600 text-white'
+                        ? 'bg-[#E1014A] text-white'
                         : 'bg-gray-800 text-gray-400 hover:text-gray-200'
                     }`}
                   >
@@ -126,7 +126,7 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !prompt.trim()}
-                className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-6 py-2 transition-colors flex items-center gap-2 font-medium"
+                className="bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-6 py-2 transition-colors flex items-center gap-2 font-medium"
               >
                 {isGenerating ? (
                   <>
@@ -161,7 +161,7 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
               {assets.map((asset) => (
                 <div
                   key={asset.id}
-                  className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-purple-500 transition-colors group"
+                  className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-[#E1014A] transition-colors group"
                 >
                   <div className="aspect-square bg-gray-900 relative">
                     <img

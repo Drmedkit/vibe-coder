@@ -57,7 +57,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
               <div
                 className={`max-w-[85%] rounded-lg px-4 py-2 ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-[#E1014A] text-white'
                     : 'bg-gray-800 text-gray-100'
                 }`}
               >
@@ -94,7 +94,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
         {isProcessing && (
           <div className="flex justify-start">
             <div className="bg-gray-800 rounded-lg px-4 py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#E1014A]" />
             </div>
           </div>
         )}
@@ -108,13 +108,13 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Vraag iets aan de AI..."
-            className="flex-1 bg-gray-800 text-gray-100 text-sm rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 bg-gray-800 text-gray-100 text-sm rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#E1014A]"
             disabled={isProcessing}
           />
           <button
             type="submit"
             disabled={isProcessing || !input.trim()}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 transition-colors"
+            className="bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 transition-colors"
           >
             {isProcessing ? (
               <Loader2 className="w-4 h-4 animate-spin" />
