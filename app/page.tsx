@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CodeState, Language, ChatMessage } from '@/lib/types'
@@ -56,7 +56,7 @@ if (button) {
 }`
 }
 
-export default function Home() {
+function EditorContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -395,5 +395,20 @@ export default function Home() {
         onClose={() => setIsAssetLibraryOpen(false)}
       />
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E1014A] mx-auto mb-4"></div>
+          <p>Laden...</p>
+        </div>
+      </div>
+    }>
+      <EditorContent />
+    </Suspense>
   )
 }
