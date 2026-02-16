@@ -1,6 +1,7 @@
 import * as fal from '@fal-ai/client'
 
-// FAL client uses FAL_KEY environment variable automatically
+// FAL.ai client uses FAL_KEY environment variable automatically
+// No configuration needed - just set FAL_KEY in your environment
 
 export interface GeneratedImage {
   id: string
