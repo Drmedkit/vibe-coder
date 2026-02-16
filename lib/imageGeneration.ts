@@ -1,7 +1,5 @@
-import * as fal from '@fal-ai/client'
-
-// FAL.ai client uses FAL_KEY environment variable automatically
-// No configuration needed - just set FAL_KEY in your environment
+// Placeholder image generation
+// TODO: Add real image generation with FAL.ai or similar service
 
 export interface GeneratedImage {
   id: string
@@ -11,51 +9,13 @@ export interface GeneratedImage {
 }
 
 export async function generateImage(prompt: string): Promise<GeneratedImage> {
-  try {
-    // FAL_KEY is the environment variable FAL.ai expects
-    if (!process.env.FAL_KEY) {
-      // Return a placeholder for demo purposes
-      return {
-        id: `demo-${Date.now()}`,
-        prompt,
-        url: `https://placehold.co/512x512/667eea/white?text=${encodeURIComponent(prompt.slice(0, 20))}`,
-        timestamp: Date.now()
-      }
-    }
-
-    // Enhance the prompt for better game assets
-    const enhancedPrompt = `${prompt}, game asset, clean background, vibrant colors, high quality, digital art style`
-
-    const result = await fal.subscribe('fal-ai/flux/schnell', {
-      input: {
-        prompt: enhancedPrompt,
-        image_size: 'square_hd',
-        num_inference_steps: 4,
-        num_images: 1
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS') {
-          console.log('Image generation in progress...')
-        }
-      }
-    })
-
-    const imageUrl = result.data.images[0]?.url
-
-    if (!imageUrl) {
-      throw new Error('No image generated')
-    }
-
-    return {
-      id: `gen-${Date.now()}`,
-      prompt,
-      url: imageUrl,
-      timestamp: Date.now()
-    }
-  } catch (error) {
-    console.error('FAL Image Generation Error:', error)
-    throw new Error('Failed to generate image. Please try again.')
+  // Return a placeholder image for now
+  // Can be replaced with real AI image generation later
+  return {
+    id: `demo-${Date.now()}`,
+    prompt,
+    url: `https://placehold.co/512x512/667eea/white?text=${encodeURIComponent(prompt.slice(0, 20))}`,
+    timestamp: Date.now()
   }
 }
 
