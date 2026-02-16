@@ -1,36 +1,40 @@
-import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
-    const path = req.nextUrl.pathname
+export async function middleware(request: NextRequest) {
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET
+  })
 
-    // Redirect to first-time setup if needed
-    if (token?.firstLogin && path !== '/first-time-setup') {
-      return NextResponse.redirect(new URL('/first-time-setup', req.url))
-    }
+  const path = request.nextUrl.pathname
 
-    // Don't allow access to first-time setup if not first login
-    if (!token?.firstLogin && path === '/first-time-setup') {
-      return NextResponse.redirect(new URL('/', req.url))
-    }
-
+  // Public paths that don't need auth
+  if (path.startsWith('/login') || path.startsWith('/api/auth')) {
     return NextResponse.next()
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
-    pages: {
-      signIn: '/login',
-    },
   }
-)
 
-// Protect all routes except login and API routes
+  // Not authenticated - redirect to login
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // First login - must go to setup
+  if (token.firstLogin && path !== '/first-time-setup') {
+    return NextResponse.redirect(new URL('/first-time-setup', request.url))
+  }
+
+  // Not first login - can't access setup
+  if (!token.firstLogin && path === '/first-time-setup') {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  return NextResponse.next()
+}
+
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|h20-logo.png|login).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|h20-logo.png).*)',
   ],
 }
