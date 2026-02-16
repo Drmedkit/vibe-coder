@@ -1,11 +1,6 @@
 import * as fal from '@fal-ai/client'
 
-// Configure FAL client
-if (process.env.FAL_API_KEY) {
-  fal.config({
-    credentials: process.env.FAL_API_KEY
-  })
-}
+// FAL client uses FAL_KEY environment variable automatically
 
 export interface GeneratedImage {
   id: string
@@ -16,7 +11,8 @@ export interface GeneratedImage {
 
 export async function generateImage(prompt: string): Promise<GeneratedImage> {
   try {
-    if (!process.env.FAL_API_KEY || process.env.FAL_API_KEY === 'your-fal-api-key-here') {
+    // FAL_KEY is the environment variable FAL.ai expects
+    if (!process.env.FAL_KEY) {
       // Return a placeholder for demo purposes
       return {
         id: `demo-${Date.now()}`,

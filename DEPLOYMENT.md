@@ -33,7 +33,7 @@ Voeg toe:
 | Name | Value | Waar krijg je dit? |
 |------|-------|-------------------|
 | `GROQ_API_KEY` | `gsk_...` | [console.groq.com](https://console.groq.com) |
-| `FAL_API_KEY` | `fal_...` | [fal.ai/dashboard](https://fal.ai/dashboard) |
+| `FAL_KEY` | `fal_...` | [fal.ai/dashboard](https://fal.ai/dashboard) |
 | `NEXTAUTH_SECRET` | `random-string` | Run: `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://jouw-app.vercel.app` | Je Vercel URL |
 
