@@ -11,19 +11,15 @@ datasource db {
 
 model User {
   id            String       @id @default(cuid())
-  email         String?      @unique
   username      String       @unique
-  passwordHash  String?
-  name          String?
+  passwordHash  String
+  displayName   String?
   role          UserRole     @default(STUDENT)
+  firstLogin    Boolean      @default(true)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   projects      Project[]
-  classrooms    Classroom[]  @relation("TeacherClassrooms")
-  enrollments   Enrollment[]
-  likes         Like[]
-  forks         Fork[]
 }
 
 enum UserRole {
@@ -35,109 +31,25 @@ enum UserRole {
 model Project {
   id            String       @id @default(cuid())
   title         String
-  description   String?
   htmlCode      String       @default("")
   cssCode       String       @default("")
   jsCode        String       @default("")
-  isPublished   Boolean      @default(false)
-  isFeatured    Boolean      @default(false)
-  views         Int          @default(0)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   userId        String
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  assets        Asset[]
-  likes         Like[]
-  forks         Fork[]
-  classroomProjects ClassroomProject[]
+  versions      ProjectVersion[]
 }
 
-model Asset {
+model ProjectVersion {
   id            String       @id @default(cuid())
-  name          String
-  type          AssetType
-  url           String
-  driveFileId   String?
-  prompt        String?
+  htmlCode      String
+  cssCode       String
+  jsCode        String
   createdAt     DateTime     @default(now())
 
   projectId     String
   project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-enum AssetType {
-  IMAGE
-  ICON
-  BACKGROUND
-}
-
-model Classroom {
-  id            String       @id @default(cuid())
-  name          String
-  code          String       @unique
-  description   String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  teacherId     String
-  teacher       User         @relation("TeacherClassrooms", fields: [teacherId], references: [id], onDelete: Cascade)
-
-  enrollments   Enrollment[]
-  projects      ClassroomProject[]
-}
-
-model Enrollment {
-  id            String       @id @default(cuid())
-  joinedAt      DateTime     @default(now())
-
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  classroomId   String
-  classroom     Classroom    @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, classroomId])
-}
-
-model ClassroomProject {
-  id            String       @id @default(cuid())
-  submittedAt   DateTime     @default(now())
-  feedback      String?
-  grade         String?
-
-  projectId     String
-  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  classroomId   String
-  classroom     Classroom    @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-
-  @@unique([projectId, classroomId])
-}
-
-model Like {
-  id            String       @id @default(cuid())
-  createdAt     DateTime     @default(now())
-
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  projectId     String
-  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, projectId])
-}
-
-model Fork {
-  id            String       @id @default(cuid())
-  createdAt     DateTime     @default(now())
-
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  originalProjectId String
-  originalProject   Project  @relation(fields: [originalProjectId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, originalProjectId])
 }
