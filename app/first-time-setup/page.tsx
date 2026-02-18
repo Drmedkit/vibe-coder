@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 
 export default function FirstTimeSetupPage() {
-  const { data: session, update } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
   const [displayName, setDisplayName] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -15,7 +15,6 @@ export default function FirstTimeSetupPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    // Redirect if not first login
     if (session && !session.user.firstLogin) {
       router.push('/')
     }
@@ -25,9 +24,8 @@ export default function FirstTimeSetupPage() {
     e.preventDefault()
     setError('')
 
-    // Validation
     if (!displayName.trim()) {
-      setError('Voer een naam in')
+      setError('Voer je naam in')
       return
     }
 
@@ -47,10 +45,7 @@ export default function FirstTimeSetupPage() {
       const response = await fetch('/api/user/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          displayName,
-          newPassword,
-        }),
+        body: JSON.stringify({ displayName, newPassword }),
       })
 
       const data = await response.json()
@@ -61,12 +56,12 @@ export default function FirstTimeSetupPage() {
         return
       }
 
-      // Force logout and re-login with new credentials
+      // Uitloggen en opnieuw inloggen met het nieuwe wachtwoord
+      const username = session?.user.username
       await signOut({ redirect: false })
 
-      // Auto-login with new credentials
       const loginResult = await signIn('credentials', {
-        username: session.user.username,
+        username,
         password: newPassword,
         redirect: false,
       })
@@ -75,10 +70,10 @@ export default function FirstTimeSetupPage() {
         router.push('/')
         router.refresh()
       } else {
-        setError('Profiel bijgewerkt, maar automatisch inloggen mislukt. Log opnieuw in.')
-        setIsLoading(false)
+        setError('Account ingesteld! Je kunt nu inloggen met je nieuwe wachtwoord.')
+        setTimeout(() => router.push('/login'), 2000)
       }
-    } catch (error) {
+    } catch {
       setError('Er ging iets mis. Probeer het opnieuw.')
       setIsLoading(false)
     }
@@ -87,26 +82,24 @@ export default function FirstTimeSetupPage() {
   if (!session) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-white">Laden...</div>
+        <div className="text-white text-sm">Laden...</div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
+      <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
           <Image src="/h20-logo.png" alt="H20 Logo" width={80} height={80} />
         </div>
 
-        {/* Setup Card */}
         <div className="bg-gray-900 rounded-lg p-8 border border-gray-800">
-          <h1 className="text-2xl font-bold text-white mb-2 text-center">
-            Welkom, {session.user.username}!
+          <h1 className="text-xl font-bold text-white mb-1 text-center">
+            Stel je account in
           </h1>
           <p className="text-gray-400 text-sm text-center mb-6">
-            Dit is je eerste keer inloggen. Kies een naam en nieuw wachtwoord.
+            Kies een naam en wachtwoord om verder te gaan.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -118,7 +111,7 @@ export default function FirstTimeSetupPage() {
 
             <div>
               <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
-                Jouw Naam
+                Jouw naam
               </label>
               <input
                 id="displayName"
@@ -126,18 +119,16 @@ export default function FirstTimeSetupPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className="w-full bg-gray-800 text-white rounded px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#E1014A] border border-gray-700"
-                placeholder="Bijv. Jan de Vries"
+                placeholder="Bijv. Jan"
+                autoFocus
                 required
                 disabled={isLoading}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Deze naam wordt in de app getoond
-              </p>
             </div>
 
             <div>
               <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                Nieuw Wachtwoord
+                Kies een wachtwoord
               </label>
               <input
                 id="newPassword"
@@ -153,7 +144,7 @@ export default function FirstTimeSetupPage() {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                Bevestig Wachtwoord
+                Wachtwoord herhalen
               </label>
               <input
                 id="confirmPassword"
@@ -170,16 +161,11 @@ export default function FirstTimeSetupPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded px-4 py-2.5 transition-colors mt-6"
+              className="w-full bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded px-4 py-2.5 transition-colors mt-2"
             >
-              {isLoading ? 'Opslaan...' : 'Profiel Instellen'}
+              {isLoading ? 'Opslaan...' : 'Account instellen'}
             </button>
           </form>
-        </div>
-
-        {/* Info */}
-        <div className="mt-6 text-center text-xs text-gray-600">
-          <p>Je kunt deze gegevens later niet meer wijzigen</p>
         </div>
       </div>
     </div>

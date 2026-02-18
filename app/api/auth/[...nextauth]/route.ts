@@ -12,12 +12,11 @@ export const authOptions: AuthOptions = {
         password: { label: "Wachtwoord", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+        if (!credentials?.username) {
           return null
         }
 
         try {
-          // Find user by username
           const user = await prisma.user.findUnique({
             where: { username: credentials.username }
           })
@@ -26,7 +25,23 @@ export const authOptions: AuthOptions = {
             return null
           }
 
-          // Verify password
+          // firstLogin accounts: alleen de username is genoeg (= activatiecode)
+          // De student hoeft geen wachtwoord te weten
+          if (user.firstLogin) {
+            return {
+              id: user.id,
+              username: user.username,
+              displayName: user.displayName,
+              role: user.role,
+              firstLogin: true,
+            }
+          }
+
+          // Bestaande accounts: wachtwoord verplicht
+          if (!credentials.password) {
+            return null
+          }
+
           const isValidPassword = await bcrypt.compare(
             credentials.password,
             user.passwordHash
@@ -36,13 +51,12 @@ export const authOptions: AuthOptions = {
             return null
           }
 
-          // Return user object (will be stored in JWT)
           return {
             id: user.id,
             username: user.username,
             displayName: user.displayName,
             role: user.role,
-            firstLogin: user.firstLogin,
+            firstLogin: false,
           }
         } catch (error) {
           console.error('Auth error:', error)

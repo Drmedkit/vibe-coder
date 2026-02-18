@@ -10,8 +10,16 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
 
-  // Public paths that don't need auth
-  if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/api/auth')) {
+  // Publieke paden
+  if (path.startsWith('/login') || path.startsWith('/api/auth')) {
+    return NextResponse.next()
+  }
+
+  // /register: alleen voor admins
+  if (path.startsWith('/register')) {
+    if (!token || token.role !== 'ADMIN') {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
     return NextResponse.next()
   }
 
