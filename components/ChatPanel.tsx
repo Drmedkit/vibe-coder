@@ -3,6 +3,14 @@
 import { useState, useRef, useEffect } from 'react'
 import React from 'react'
 import { ChatMessage } from '@/lib/types'
+
+function extractText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (React.isValidElement(node)) return extractText((node.props as { children?: React.ReactNode }).children)
+  return ''
+}
 import { Send, Loader2, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
@@ -88,7 +96,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode }
                           const className = child?.props?.className || ''
                           const match = /language-(\w+)/.exec(className)
                           const lang = match?.[1]
-                          const rawCode = String(child?.props?.children ?? '').replace(/\n$/, '')
+                          const rawCode = extractText(child?.props?.children).replace(/\n$/, '')
 
                           const applyLang = (lang === 'js' ? 'javascript' : lang) as ApplyLang
                           const canApply = !!lang && ['html', 'css', 'javascript', 'js'].includes(lang)
