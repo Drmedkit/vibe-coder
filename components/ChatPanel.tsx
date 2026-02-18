@@ -1,34 +1,46 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import React from 'react'
 import { ChatMessage } from '@/lib/types'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Loader2, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+
+type ApplyLang = 'html' | 'css' | 'javascript'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
   onSendMessage: (message: string) => void
   isProcessing: boolean
+  onApplyCode: (lang: ApplyLang, code: string) => void
 }
 
-export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelProps) {
+const LANG_LABEL: Record<string, string> = {
+  html: 'HTML',
+  css: 'CSS',
+  javascript: 'JavaScript',
+  js: 'JavaScript',
+}
+
+export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode }: ChatPanelProps) {
   const [input, setInput] = useState('')
+  const [appliedBlocks, setAppliedBlocks] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   useEffect(() => {
-    scrollToBottom()
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isProcessing) return
-
     onSendMessage(input)
     setInput('')
+  }
+
+  const handleApply = (lang: ApplyLang, code: string, blockId: string) => {
+    onApplyCode(lang, code)
+    setAppliedBlocks(prev => new Set([...prev, blockId]))
   }
 
   return (
@@ -67,16 +79,58 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
                   <div className="prose prose-sm prose-invert max-w-none">
                     <ReactMarkdown
                       components={{
-                        code: ({ className, children, ...props }) => {
-                          const match = /language-(\w+)/.exec(className || '')
-                          const isInline = !match
+                        pre: ({ children }) => {
+                          // Haal taal en code op uit het <code> element binnen <pre>
+                          const child = React.Children.toArray(children).find(
+                            c => React.isValidElement(c) && (c as React.ReactElement).type === 'code'
+                          ) as React.ReactElement<{ className?: string; children?: React.ReactNode }> | undefined
 
-                          return isInline ? (
-                            <code className="bg-gray-700 px-1 py-0.5 rounded text-xs" {...props}>
+                          const className = child?.props?.className || ''
+                          const match = /language-(\w+)/.exec(className)
+                          const lang = match?.[1]
+                          const rawCode = String(child?.props?.children ?? '').replace(/\n$/, '')
+
+                          const applyLang = (lang === 'js' ? 'javascript' : lang) as ApplyLang
+                          const canApply = !!lang && ['html', 'css', 'javascript', 'js'].includes(lang)
+                          const blockId = `${message.id}-${lang}-${rawCode.slice(0, 30)}`
+                          const isApplied = appliedBlocks.has(blockId)
+
+                          return (
+                            <div className="my-2">
+                              <pre className="bg-gray-950 p-3 rounded text-xs overflow-x-auto border border-gray-800">
+                                {children}
+                              </pre>
+                              {canApply && (
+                                <button
+                                  onClick={() => handleApply(applyLang, rawCode, blockId)}
+                                  className={`mt-1 w-full text-xs py-2 px-3 rounded transition-all flex items-center gap-1.5 justify-center font-medium ${
+                                    isApplied
+                                      ? 'bg-green-900/40 text-green-400 border border-green-800/60'
+                                      : 'bg-[#E1014A]/10 hover:bg-[#E1014A]/25 text-[#E1014A] border border-[#E1014A]/30'
+                                  }`}
+                                >
+                                  {isApplied ? (
+                                    <>
+                                      <Check className="w-3 h-3" />
+                                      Toegepast in {LANG_LABEL[lang!]}
+                                    </>
+                                  ) : (
+                                    `▶ Toepassen in ${LANG_LABEL[lang!]}`
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )
+                        },
+                        code: ({ className, children, ...props }) => {
+                          const isBlock = /language-(\w+)/.exec(className || '')
+                          // Block code styling wordt door `pre` afgehandeld
+                          return isBlock ? (
+                            <code className={`text-xs ${className ?? ''}`} {...props}>
                               {children}
                             </code>
                           ) : (
-                            <code className={`block bg-gray-950 p-2 rounded text-xs overflow-x-auto ${className}`} {...props}>
+                            <code className="bg-gray-700 px-1 py-0.5 rounded text-xs" {...props}>
                               {children}
                             </code>
                           )

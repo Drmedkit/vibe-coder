@@ -371,6 +371,7 @@ function EditorContent() {
               messages={messages}
               onSendMessage={handleSendMessage}
               isProcessing={isProcessing}
+              onApplyCode={(lang, codeStr) => handleCodeChange(lang as Language, codeStr)}
             />
           ) : (
             <CodeEditor
