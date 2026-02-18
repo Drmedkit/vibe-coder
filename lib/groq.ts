@@ -97,7 +97,7 @@ ${codeContext.javascript}
     ]
 
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'moonshotai/kimi-k2-instruct',
       messages: messages as any,
       temperature: 0.7,
       max_tokens: 2048,
