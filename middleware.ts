@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+// nginx strips /vibe-coder prefix before proxying, so paths here are root-relative
+function redirectTo(path: string, request: NextRequest) {
+  return NextResponse.redirect(new URL(path, request.url))
+}
+
 export async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
@@ -18,24 +23,24 @@ export async function middleware(request: NextRequest) {
   // /register: alleen voor admins
   if (path.startsWith('/register')) {
     if (!token || token.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return redirectTo('/login', request)
     }
     return NextResponse.next()
   }
 
   // Not authenticated - redirect to login
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirectTo('/login', request)
   }
 
   // First login - must go to setup
   if (token.firstLogin && path !== '/first-time-setup') {
-    return NextResponse.redirect(new URL('/first-time-setup', request.url))
+    return redirectTo('/first-time-setup', request)
   }
 
   // Not first login - can't access setup
   if (!token.firstLogin && path === '/first-time-setup') {
-    return NextResponse.redirect(new URL('/', request.url))
+    return redirectTo('/', request)
   }
 
   return NextResponse.next()
@@ -43,6 +48,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|h20-logo.png).*)',
+    '/((?!_next/static|_next/image|favicon.ico|h20-logo.png).*)',
   ],
 }
