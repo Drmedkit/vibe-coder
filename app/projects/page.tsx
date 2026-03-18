@@ -1,26 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Plus, Trash2, Edit2, Clock } from 'lucide-react'
+import { Plus, Trash2, Clock, GitFork, FolderOpen } from 'lucide-react'
 
 interface Project {
   id: string
   title: string
+  htmlCode: string
+  cssCode: string
+  jsCode: string
   createdAt: string
   updatedAt: string
 }
 
 export default function ProjectsPage() {
-  const { data: session } = useSession()
   const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [error, setError] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
 
   useEffect(() => {
     loadProjects()
@@ -72,9 +74,16 @@ export default function ProjectsPage() {
         return
       }
 
-      // Redirect to editor with new project
-      router.push(`/?projectId=${data.project.id}`)
-    } catch (error) {
+      // Fork the empty project into the editor
+      sessionStorage.setItem('vibe_fork', JSON.stringify({
+        code: {
+          html: data.project.htmlCode,
+          css: data.project.cssCode,
+          javascript: data.project.jsCode,
+        }
+      }))
+      router.push('/')
+    } catch {
       setError('Er ging iets mis. Probeer het opnieuw.')
       setIsCreating(false)
     }
@@ -99,6 +108,28 @@ export default function ProjectsPage() {
     }
   }
 
+  const handleForkProject = (project: Project) => {
+    sessionStorage.setItem('vibe_fork', JSON.stringify({
+      code: {
+        html: project.htmlCode,
+        css: project.cssCode,
+        javascript: project.jsCode,
+      }
+    }))
+    router.push('/')
+  }
+
+  const handleOpenProject = (project: Project) => {
+    sessionStorage.setItem('vibe_fork', JSON.stringify({
+      code: {
+        html: project.htmlCode,
+        css: project.cssCode,
+        javascript: project.jsCode,
+      }
+    }))
+    router.push('/')
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('nl-NL', {
@@ -116,25 +147,24 @@ export default function ProjectsPage() {
       <header className="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-gray-900">
         <div className="flex items-center gap-4">
           <Image src="/h20-logo.png" alt="H20 Logo" width={40} height={40} />
-          <h1 className="text-xl font-bold text-white">Mijn Projecten</h1>
+          <h1 className="text-xl font-bold text-white">Alle Projecten</h1>
         </div>
-        <div className="flex items-center gap-3 text-gray-300 text-sm">
-          <span>👤 {session?.user?.displayName || session?.user?.username}</span>
-        </div>
+        <button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="flex items-center gap-2 bg-[#E1014A] hover:bg-[#c1013d] text-white font-medium rounded px-4 py-2 transition-colors text-sm"
+        >
+          <Plus size={16} />
+          Nieuw project
+        </button>
       </header>
 
       <main className="max-w-6xl mx-auto p-8">
-        {/* Create New Project */}
-        <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Nieuw Project Maken
-          </h2>
-
-          {projects.length >= 3 ? (
-            <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4 text-yellow-500 text-sm">
-              ⚠️ Je hebt al 3 projecten. Verwijder er eerst een om een nieuwe te maken.
-            </div>
-          ) : (
+        {/* Create New Project Form */}
+        {showCreateForm && (
+          <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">
+              Nieuw Project Maken
+            </h2>
             <form onSubmit={handleCreateProject} className="flex gap-3">
               <input
                 type="text"
@@ -143,6 +173,7 @@ export default function ProjectsPage() {
                 placeholder="Project naam..."
                 className="flex-1 bg-gray-800 text-white rounded px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#E1014A] border border-gray-700"
                 disabled={isCreating}
+                autoFocus
               />
               <button
                 type="submit"
@@ -152,32 +183,35 @@ export default function ProjectsPage() {
                 <Plus size={18} />
                 {isCreating ? 'Maken...' : 'Aanmaken'}
               </button>
+              <button
+                type="button"
+                onClick={() => { setShowCreateForm(false); setError(''); setNewProjectTitle('') }}
+                className="bg-gray-800 hover:bg-gray-700 text-white font-medium rounded px-4 py-2.5 transition-colors"
+              >
+                Annuleren
+              </button>
             </form>
-          )}
 
-          {error && (
-            <div className="mt-3 bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm">
-              {error}
-            </div>
-          )}
-
-          <p className="text-gray-500 text-xs mt-3">
-            Je kunt maximaal 3 projecten hebben
-          </p>
-        </div>
+            {error && (
+              <div className="mt-3 bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Projects List */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white mb-4">
-            Jouw Projecten ({projects.length}/3)
+            Projecten ({projects.length})
           </h2>
 
           {isLoading ? (
             <div className="text-center text-gray-500 py-12">Laden...</div>
           ) : projects.length === 0 ? (
             <div className="bg-gray-900 rounded-lg p-12 border border-gray-800 text-center">
-              <p className="text-gray-400 mb-2">Je hebt nog geen projecten</p>
-              <p className="text-gray-600 text-sm">Maak je eerste project hierboven!</p>
+              <p className="text-gray-400 mb-2">Nog geen projecten</p>
+              <p className="text-gray-600 text-sm">Maak het eerste project aan!</p>
             </div>
           ) : (
             projects.map((project) => (
@@ -193,18 +227,30 @@ export default function ProjectsPage() {
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1">
                         <Clock size={14} />
-                        Laatst gewijzigd: {formatDate(project.updatedAt)}
+                        Aangemaakt: {formatDate(project.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={14} />
+                        Bijgewerkt: {formatDate(project.updatedAt)}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => router.push(`/?projectId=${project.id}`)}
+                      onClick={() => handleOpenProject(project)}
                       className="bg-[#60C2D2] hover:bg-[#4ba9b8] text-black font-medium rounded px-4 py-2 transition-colors flex items-center gap-2"
                     >
-                      <Edit2 size={16} />
-                      Bewerken
+                      <FolderOpen size={16} />
+                      Openen
+                    </button>
+                    <button
+                      onClick={() => handleForkProject(project)}
+                      className="bg-[#364B9B] hover:bg-[#2a3a7a] text-white font-medium rounded px-4 py-2 transition-colors flex items-center gap-2"
+                      title="Fork: laad dit project in de editor als nieuw project"
+                    >
+                      <GitFork size={16} />
+                      Fork
                     </button>
                     <button
                       onClick={() => handleDeleteProject(project.id)}

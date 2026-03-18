@@ -1,46 +1,27 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getToken } from 'next-auth/jwt'
 
-// nginx strips /vibe-coder prefix before proxying, so paths here are root-relative
-function redirectTo(path: string, request: NextRequest) {
-  return NextResponse.redirect(new URL(path, request.url))
-}
+// Public paths that don't require the access cookie
+const PUBLIC_PATHS = ['/enter', '/api/auth/enter', '/api/auth/leave', '/api/images/']
 
-export async function middleware(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET
-  })
-
+export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Publieke paden
-  if (path.startsWith('/login') || path.startsWith('/api/auth')) {
+  // Allow public paths and static assets
+  if (
+    PUBLIC_PATHS.some(p => path.startsWith(p)) ||
+    path.startsWith('/_next') ||
+    path === '/favicon.ico' ||
+    path === '/h20-logo.png'
+  ) {
     return NextResponse.next()
   }
 
-  // /register: alleen voor admins
-  if (path.startsWith('/register')) {
-    if (!token || token.role !== 'ADMIN') {
-      return redirectTo('/login', request)
-    }
-    return NextResponse.next()
-  }
+  // Check for the access cookie
+  const vibeAccess = request.cookies.get('vibe_access')
 
-  // Not authenticated - redirect to login
-  if (!token) {
-    return redirectTo('/login', request)
-  }
-
-  // First login - must go to setup
-  if (token.firstLogin && path !== '/first-time-setup') {
-    return redirectTo('/first-time-setup', request)
-  }
-
-  // Not first login - can't access setup
-  if (!token.firstLogin && path === '/first-time-setup') {
-    return redirectTo('/', request)
+  if (!vibeAccess || vibeAccess.value !== '1') {
+    return NextResponse.redirect(new URL('/enter', request.url))
   }
 
   return NextResponse.next()

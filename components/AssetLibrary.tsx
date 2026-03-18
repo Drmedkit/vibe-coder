@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Loader2, Image as ImageIcon, Sparkles, Copy, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Loader2, Image as ImageIcon, Sparkles, Copy, Check, MessageSquarePlus } from 'lucide-react'
 
 interface Asset {
   id: string
@@ -13,14 +13,23 @@ interface Asset {
 interface AssetLibraryProps {
   isOpen: boolean
   onClose: () => void
+  onUseInChat?: (prompt: string) => void
 }
 
-export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
+export function AssetLibrary({ isOpen, onClose, onUseInChat }: AssetLibraryProps) {
   const [prompt, setPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [assets, setAssets] = useState<Asset[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [assetType, setAssetType] = useState<'character' | 'background' | 'item' | 'icon'>('item')
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetch('/api/assets')
+      .then(r => r.json())
+      .then(data => setAssets(data.assets || []))
+      .catch(() => {})
+  }, [isOpen])
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return
@@ -62,7 +71,8 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
   }
 
   const handleCopyUrl = (asset: Asset) => {
-    navigator.clipboard.writeText(asset.url)
+    const fullUrl = `${window.location.origin}${asset.url}`
+    navigator.clipboard.writeText(fullUrl)
     setCopiedId(asset.id)
     setTimeout(() => setCopiedId(null), 2000)
   }
@@ -170,24 +180,27 @@ export function AssetLibrary({ isOpen, onClose }: AssetLibraryProps) {
                       className="w-full h-full object-contain"
                     />
                   </div>
-                  <div className="p-2">
-                    <p className="text-xs text-gray-400 truncate mb-2">{asset.prompt}</p>
+                  <div className="p-2 space-y-1.5">
+                    <p className="text-xs text-gray-400 truncate">{asset.prompt}</p>
                     <button
                       onClick={() => handleCopyUrl(asset)}
                       className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs py-1.5 px-2 rounded flex items-center justify-center gap-1 transition-colors"
                     >
                       {copiedId === asset.id ? (
-                        <>
-                          <Check size={12} />
-                          Gekopieerd!
-                        </>
+                        <><Check size={12} />Gekopieerd!</>
                       ) : (
-                        <>
-                          <Copy size={12} />
-                          Kopieer URL
-                        </>
+                        <><Copy size={12} />Kopieer URL</>
                       )}
                     </button>
+                    {onUseInChat && (
+                      <button
+                        onClick={() => { onUseInChat(asset.prompt); onClose() }}
+                        className="w-full bg-[#E1014A]/10 hover:bg-[#E1014A]/20 text-[#E1014A] border border-[#E1014A]/30 text-xs py-1.5 px-2 rounded flex items-center justify-center gap-1 transition-colors"
+                      >
+                        <MessageSquarePlus size={12} />
+                        Gebruik in chat
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

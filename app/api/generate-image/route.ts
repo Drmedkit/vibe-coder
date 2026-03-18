@@ -1,35 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateImage, generateGameAsset } from '@/lib/imageGeneration'
+import { generateGameAsset } from '@/lib/imageGeneration'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { prompt, assetType } = body as {
+    const { prompt, assetType = 'item' } = await request.json() as {
       prompt: string
       assetType?: 'character' | 'background' | 'item' | 'icon'
     }
+    if (!prompt) return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      )
-    }
+    // Generate image (returns data URL)
+    const dataUrl = await generateGameAsset(prompt, assetType)
+    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
 
-    let result
+    // Save to database
+    const asset = await prisma.asset.create({
+      data: { prompt, assetType, data: base64, mimeType: 'image/png' },
+    })
 
-    if (assetType) {
-      result = await generateGameAsset(prompt, assetType)
-    } else {
-      result = await generateImage(prompt)
-    }
-
-    return NextResponse.json(result)
+    return NextResponse.json({
+      id: asset.id,
+      prompt,
+      url: `/api/images/${asset.id}`,
+      timestamp: Date.now(),
+    })
   } catch (error) {
-    console.error('Image Generation API Error:', error)
-    return NextResponse.json(
-      { error: 'Failed to generate image' },
-      { status: 500 }
-    )
+    console.error('Image generation error:', error)
+    return NextResponse.json({ error: 'Afbeelding genereren mislukt' }, { status: 500 })
   }
 }

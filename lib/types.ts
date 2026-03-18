@@ -11,11 +11,16 @@ export interface CodeState {
   javascript: string
 }
 
+export type ToolResult =
+  | { type: 'code_update'; html?: string; css?: string; javascript?: string }
+  | { type: 'image_generated'; url: string; prompt: string }
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  toolResult?: ToolResult
 }
 
 export interface ProjectData {

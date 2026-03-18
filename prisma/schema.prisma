@@ -9,47 +9,21 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id            String       @id @default(cuid())
-  username      String       @unique
-  passwordHash  String
-  displayName   String?
-  role          UserRole     @default(STUDENT)
-  firstLogin    Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  projects      Project[]
-}
-
-enum UserRole {
-  STUDENT
-  TEACHER
-  ADMIN
-}
-
 model Project {
-  id            String       @id @default(cuid())
-  title         String
-  htmlCode      String       @default("")
-  cssCode       String       @default("")
-  jsCode        String       @default("")
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  versions      ProjectVersion[]
+  id        String   @id @default(cuid())
+  title     String
+  htmlCode  String   @default("")
+  cssCode   String   @default("")
+  jsCode    String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model ProjectVersion {
-  id            String       @id @default(cuid())
-  htmlCode      String
-  cssCode       String
-  jsCode        String
-  createdAt     DateTime     @default(now())
-
-  projectId     String
-  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model Asset {
+  id        String   @id @default(cuid())
+  prompt    String
+  assetType String
+  mimeType  String   @default("image/png")
+  data      String   // base64 image data WITHOUT the "data:image/...;base64," prefix
+  createdAt DateTime @default(now())
 }

@@ -32,6 +32,9 @@ services:
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY}
       FAL_KEY: ""
       NODE_ENV: "production"
+    volumes:
+      - vibe_uploads:/app/uploads
 
 volumes:
   vibe_db_data:
+  vibe_uploads:

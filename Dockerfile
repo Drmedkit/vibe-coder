@@ -14,9 +14,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # Dummy waarden zodat next build niet crasht (worden overschreven via docker-compose at runtime)
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
-ENV NEXTAUTH_SECRET="build-time-placeholder"
-ENV NEXTAUTH_URL="http://localhost:3000"
-ENV GROQ_API_KEY="build-placeholder"
+ENV OPENROUTER_API_KEY="build-placeholder"
 
 RUN npm run build
 

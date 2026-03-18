@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
-import { useSession, signOut } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CodeState, Language, ChatMessage } from '@/lib/types'
 import { CodeEditor } from '@/components/CodeEditor'
@@ -15,12 +14,10 @@ import {
   Download,
   Upload,
   Save,
-  Share2,
   Image as ImageIcon,
   MessageSquare,
   FolderOpen,
   LogOut,
-  Check
 } from 'lucide-react'
 
 const INITIAL_CODE: CodeState = {
@@ -57,93 +54,59 @@ if (button) {
 }
 
 function EditorContent() {
-  const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const projectId = searchParams.get('projectId')
 
-  const [code, setCode] = useState<CodeState>(INITIAL_CODE)
+  const [code, setCode] = useState<CodeState>(() => {
+    if (typeof window === 'undefined') return INITIAL_CODE
+    try {
+      const saved = localStorage.getItem('vibe-coder-code')
+      return saved ? JSON.parse(saved) : INITIAL_CODE
+    } catch {
+      return INITIAL_CODE
+    }
+  })
   const [activeTab, setActiveTab] = useState<Language>(Language.CHAT)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(true)
   const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false)
-  const [projectTitle, setProjectTitle] = useState('Nieuw Project')
+  const [chatPrefill, setChatPrefill] = useState('')
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false)
+  const [saveTitle, setSaveTitle] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
-  // Load project if projectId in URL
+  // Load forked code from sessionStorage or query params on mount
   useEffect(() => {
-    if (projectId) {
-      loadProject(projectId)
-    }
-  }, [projectId])
-
-  // Auto-save every 10 seconds if there are changes
-  useEffect(() => {
-    if (!projectId || !hasUnsavedChanges) return
-
-    const interval = setInterval(() => {
-      saveProject()
-    }, 10000) // 10 seconds
-
-    return () => clearInterval(interval)
-  }, [projectId, hasUnsavedChanges, code])
-
-  const loadProject = async (id: string) => {
-    try {
-      const response = await fetch(`/api/projects/${id}`)
-      const data = await response.json()
-
-      if (response.ok && data.project) {
-        setCode({
-          html: data.project.htmlCode,
-          css: data.project.cssCode,
-          javascript: data.project.jsCode,
-        })
-        setProjectTitle(data.project.title)
-        setHasUnsavedChanges(false)
+    // Check sessionStorage for forked project
+    const forked = sessionStorage.getItem('vibe_fork')
+    if (forked) {
+      sessionStorage.removeItem('vibe_fork')
+      try {
+        const data = JSON.parse(forked)
+        if (data.code) {
+          setCode(data.code)
+          try { localStorage.setItem('vibe-coder-code', JSON.stringify(data.code)) } catch {}
+        }
+      } catch {
+        // ignore
       }
-    } catch (error) {
-      console.error('Load project error:', error)
     }
-  }
-
-  const saveProject = async () => {
-    if (!projectId) return
-
-    setIsSaving(true)
-
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          htmlCode: code.html,
-          cssCode: code.css,
-          jsCode: code.javascript,
-          saveVersion: false, // Don't create version on auto-save
-        }),
-      })
-
-      if (response.ok) {
-        setLastSaved(new Date())
-        setHasUnsavedChanges(false)
-      }
-    } catch (error) {
-      console.error('Save error:', error)
-    } finally {
-      setIsSaving(false)
-    }
-  }
+  }, [])
 
   const handleCodeChange = (lang: Language, value: string) => {
-    setCode(prev => ({ ...prev, [lang]: value }))
-    setHasUnsavedChanges(true)
+    setCode(prev => {
+      const next = { ...prev, [lang]: value }
+      try { localStorage.setItem('vibe-coder-code', JSON.stringify(next)) } catch {}
+      return next
+    })
   }
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (rawText: string) => {
+    // Strip any base64 data URLs — replace with readable placeholder
+    const text = rawText.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]{20,}/g, '[afbeelding]')
+
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -161,17 +124,35 @@ function EditorContent() {
         body: JSON.stringify({
           message: text,
           code,
-          history: messages.slice(-10)
+          history: messages.slice(-10).map(m => ({
+            role: m.role,
+            // Strip base64 image data from history — replace with text reference
+            content: m.toolResult?.type === 'image_generated'
+              ? `${m.content}\n[Afbeelding gegenereerd: "${m.toolResult.prompt}"]`
+              : m.content,
+          }))
         })
       })
 
       const data = await response.json()
 
+      // Apply code update immediately if present
+      if (data.codeUpdate) {
+        if (data.codeUpdate.html !== undefined) handleCodeChange(Language.HTML, data.codeUpdate.html)
+        if (data.codeUpdate.css !== undefined) handleCodeChange(Language.CSS, data.codeUpdate.css)
+        if (data.codeUpdate.javascript !== undefined) handleCodeChange(Language.JAVASCRIPT, data.codeUpdate.javascript)
+      }
+
       const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'Sorry, er ging iets mis.',
-        timestamp: Date.now()
+        content: data.text || data.response || 'Sorry, er ging iets mis.',
+        timestamp: Date.now(),
+        toolResult: data.codeUpdate
+          ? { type: 'code_update', ...data.codeUpdate }
+          : data.imageGenerated
+            ? { type: 'image_generated', url: data.imageGenerated.url, prompt: data.imageGenerated.prompt }
+            : undefined,
       }
 
       setMessages(prev => [...prev, botMessage])
@@ -191,7 +172,7 @@ function EditorContent() {
 
   const handleDownload = () => {
     const projectData = {
-      name: projectTitle,
+      name: 'vibe-project',
       version: 1,
       timestamp: new Date().toISOString(),
       code
@@ -200,7 +181,7 @@ function EditorContent() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${projectTitle.replace(/\s+/g, '-')}-${Date.now()}.json`
+    a.download = `vibe-project-${Date.now()}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -221,16 +202,62 @@ function EditorContent() {
           const data = JSON.parse(e.target?.result as string)
           if (data.code) {
             setCode(data.code)
+            try { localStorage.setItem('vibe-coder-code', JSON.stringify(data.code)) } catch {}
             setMessages([])
-            setHasUnsavedChanges(true)
           }
-        } catch (error) {
+        } catch {
           alert('Kon het bestand niet lezen.')
         }
       }
       reader.readAsText(file)
     }
     input.click()
+  }
+
+  const handleSaveOpen = () => {
+    setSaveTitle('')
+    setSaveSuccess(false)
+    setIsSaveDialogOpen(true)
+  }
+
+  const handleSaveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!saveTitle.trim()) return
+
+    setIsSaving(true)
+
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: saveTitle.trim(),
+          htmlCode: code.html,
+          cssCode: code.css,
+          jsCode: code.javascript,
+        }),
+      })
+
+      if (response.ok) {
+        setSaveSuccess(true)
+        setTimeout(() => {
+          setIsSaveDialogOpen(false)
+          setSaveSuccess(false)
+        }, 1500)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Er ging iets mis bij het opslaan.')
+      }
+    } catch {
+      alert('Er ging iets mis bij het opslaan.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/leave', { method: 'POST' })
+    router.push('/enter')
   }
 
   return (
@@ -240,14 +267,7 @@ function EditorContent() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <Image src="/h20-logo.png" alt="H20 Logo" width={48} height={48} className="h-12 w-auto" />
-            <div>
-              <h1 className="font-bold text-base text-white">{projectTitle}</h1>
-              {lastSaved && (
-                <p className="text-xs text-gray-500">
-                  {isSaving ? 'Opslaan...' : hasUnsavedChanges ? 'Niet opgeslagen' : `Opgeslagen ${lastSaved.toLocaleTimeString('nl-NL')}`}
-                </p>
-              )}
-            </div>
+            <h1 className="font-bold text-base text-white">Vibe Coder</h1>
           </div>
         </div>
 
@@ -263,7 +283,7 @@ function EditorContent() {
             onClick={() => setActiveTab(Language.HTML)}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-2 ${activeTab === Language.HTML ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}
           >
-            <PanelRight size={12} /> HTML
+            <FileType size={12} /> HTML
           </button>
           <button
             onClick={() => setActiveTab(Language.CSS)}
@@ -289,30 +309,13 @@ function EditorContent() {
             <span className="hidden sm:inline">Projecten</span>
           </button>
 
-          {projectId && (
-            <button
-              onClick={saveProject}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#60C2D2] hover:bg-[#4ba9b8] disabled:bg-gray-700 disabled:cursor-not-allowed text-black text-xs font-medium transition-colors"
-            >
-              {isSaving ? (
-                <>
-                  <Save size={14} className="animate-spin" />
-                  <span className="hidden sm:inline">Opslaan...</span>
-                </>
-              ) : hasUnsavedChanges ? (
-                <>
-                  <Save size={14} />
-                  <span className="hidden sm:inline">Opslaan</span>
-                </>
-              ) : (
-                <>
-                  <Check size={14} />
-                  <span className="hidden sm:inline">Opgeslagen</span>
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleSaveOpen}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#60C2D2] hover:bg-[#4ba9b8] text-black text-xs font-medium transition-colors"
+          >
+            <Save size={14} />
+            <span className="hidden sm:inline">Opslaan</span>
+          </button>
 
           <button
             onClick={handleDownload}
@@ -346,13 +349,10 @@ function EditorContent() {
             <PanelRight size={18} />
           </button>
 
-          {/* User Menu */}
-          <div className="ml-2 pl-2 border-l border-gray-800 flex items-center gap-2">
-            <span className="text-xs text-gray-400">
-              {session?.user?.displayName || session?.user?.username}
-            </span>
+          {/* Logout */}
+          <div className="ml-2 pl-2 border-l border-gray-800">
             <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={handleLogout}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
               title="Uitloggen"
             >
@@ -372,6 +372,9 @@ function EditorContent() {
               onSendMessage={handleSendMessage}
               isProcessing={isProcessing}
               onApplyCode={(lang, codeStr) => handleCodeChange(lang as Language, codeStr)}
+              currentCode={code}
+              prefill={chatPrefill}
+              onPrefillConsumed={() => setChatPrefill('')}
             />
           ) : (
             <CodeEditor
@@ -394,7 +397,63 @@ function EditorContent() {
       <AssetLibrary
         isOpen={isAssetLibraryOpen}
         onClose={() => setIsAssetLibraryOpen(false)}
+        onUseInChat={(prompt) => {
+          setChatPrefill(`Gebruik de afbeelding "${prompt}" en `)
+          setActiveTab(Language.CHAT)
+        }}
       />
+
+      {/* Save Dialog */}
+      {isSaveDialogOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 w-full max-w-sm">
+            <h2 className="text-lg font-semibold text-white mb-4">Project opslaan</h2>
+
+            {saveSuccess ? (
+              <div className="text-center py-4">
+                <div className="text-[#60C2D2] text-4xl mb-2">✓</div>
+                <p className="text-white">Project opgeslagen!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="saveTitle" className="block text-sm font-medium text-gray-300 mb-2">
+                    Projectnaam
+                  </label>
+                  <input
+                    id="saveTitle"
+                    type="text"
+                    value={saveTitle}
+                    onChange={(e) => setSaveTitle(e.target.value)}
+                    placeholder="Bijv. Mijn eerste website"
+                    className="w-full bg-gray-800 text-white rounded px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#60C2D2] border border-gray-700"
+                    autoFocus
+                    disabled={isSaving}
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsSaveDialogOpen(false)}
+                    className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded px-4 py-2.5 transition-colors"
+                    disabled={isSaving}
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving || !saveTitle.trim()}
+                    className="flex-1 bg-[#60C2D2] hover:bg-[#4ba9b8] disabled:bg-gray-700 disabled:cursor-not-allowed text-black font-medium rounded px-4 py-2.5 transition-colors"
+                  >
+                    {isSaving ? 'Opslaan...' : 'Opslaan'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
