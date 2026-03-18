@@ -151,8 +151,10 @@ function EditPreview({
 
   // Show which patches can actually be found in the current code
   const patchStatus = patches.map(p => {
-    const src = p.file === 'js' ? currentCode.javascript : currentCode[p.file as 'html' | 'css']
-    return { ...p, found: src.includes(p.find) }
+    const src = p.file === 'js' || p.file === 'javascript' as string
+      ? currentCode.javascript
+      : currentCode[p.file as 'html' | 'css'] ?? ''
+    return { ...p, found: !!(src && p.find && src.includes(p.find)) }
   })
   const anyFound = patchStatus.some(p => p.found)
 
