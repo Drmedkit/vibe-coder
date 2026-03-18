@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { generateGameAsset } from './imageGeneration'
-import { ChatMode } from './types'
+import { ChatMode, EditPatch } from './types'
 
 const client = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
@@ -21,6 +21,7 @@ export interface ChatMessage {
 export interface AIResponse {
   text: string
   codeUpdate?: { html?: string; css?: string; javascript?: string }
+  editPatches?: EditPatch[]
   imageGenerated?: { url: string; prompt: string }
 }
 
@@ -61,20 +62,22 @@ Regels:
 - Gebruik je/jij, niet u.
 - Geef ALLEEN de <text> tag terug, niets anders buiten de tag.`,
 
-  edit: `Je bent een precies code-editor voor beginners. Maak ALLEEN de gevraagde kleine aanpassing — verander niets anders.
+  edit: `Je bent een precies code-editor voor beginners. Maak ALLEEN de gevraagde kleine aanpassing via zoek-en-vervang — verander NIETS anders.
 
 Antwoord ALTIJD in het Nederlands met deze exacte tagstructuur:
 
-<text>Kort wat je hebt aangepast</text>
-<html>Volledige body HTML inhoud hier</html>
-<css>Volledige CSS inhoud hier</css>
-<js>Volledige JavaScript inhoud hier</js>
+<text>Korte uitleg van wat je hebt aangepast</text>
+<edit file="html"><find>exacte tekst die vervangen moet worden</find><replace>nieuwe tekst</replace></edit>
+<edit file="css"><find>exacte tekst die vervangen moet worden</find><replace>nieuwe tekst</replace></edit>
+<edit file="js"><find>exacte tekst die vervangen moet worden</find><replace>nieuwe tekst</replace></edit>
 
 Regels:
-- <text> is ALTIJD verplicht — beschrijf in één zin wat je hebt aangepast.
-- Voeg <html>, <css>, <js> ALLEEN toe voor het bestand dat je wijzigt. Geef dan ALTIJD de VOLLEDIGE inhoud — nooit een fragment.
-- Pas NIETS aan wat niet gevraagd is.
-- Geen <image/> tag in deze mode.
+- <text> is ALTIJD verplicht.
+- Gebruik <edit> tags — geef NOOIT de volledige bestandsinhoud terug.
+- De <find> waarde moet EXACT overeenkomen met de huidige code (inclusief spaties en inspringing).
+- Neem genoeg context op zodat de zoekterm uniek is (bijv. 1-2 omliggende regels).
+- Meerdere <edit> tags zijn toegestaan.
+- Alleen file="html", file="css" of file="js" — niets anders.
 - Geef ALLEEN de tags terug, geen extra tekst of markdown buiten de tags.`,
 }
 
@@ -87,6 +90,20 @@ const MAX_TOKENS: Record<ChatMode, number> = {
 function extractTag(raw: string, tag: string): string | undefined {
   const match = raw.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
   return match?.[1]?.trim() || undefined
+}
+
+function extractEditPatches(raw: string): EditPatch[] {
+  const patches: EditPatch[] = []
+  const editRegex = /<edit\s+file="(html|css|js)">\s*<find>([\s\S]*?)<\/find>\s*<replace>([\s\S]*?)<\/replace>\s*<\/edit>/gi
+  let match
+  while ((match = editRegex.exec(raw)) !== null) {
+    patches.push({
+      file: match[1] as 'html' | 'css' | 'js',
+      find: match[2],
+      replace: match[3],
+    })
+  }
+  return patches
 }
 
 function extractImageTag(raw: string): { prompt: string; assetType: string } | undefined {
@@ -161,11 +178,17 @@ ${codeContext.javascript}
   } catch (e: unknown) {
     const status = (e as { status?: number })?.status
     if (status === 402 || status === 429 || status === 404) {
-      // Out of credits or rate limited — fall back to nemotron
       raw = await callModel(MODELS.fallback, messages, MAX_TOKENS[mode])
     } else {
       throw e
     }
+  }
+
+  // Edit mode: parse patches instead of full file replacement
+  if (mode === 'edit') {
+    const text = extractTag(raw, 'text') ?? raw
+    const patches = extractEditPatches(raw)
+    return { text, editPatches: patches.length > 0 ? patches : undefined }
   }
 
   const result = parseAIResponse(raw)

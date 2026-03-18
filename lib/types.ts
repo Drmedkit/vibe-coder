@@ -13,8 +13,15 @@ export interface CodeState {
   javascript: string
 }
 
+export interface EditPatch {
+  file: 'html' | 'css' | 'js'
+  find: string
+  replace: string
+}
+
 export type ToolResult =
   | { type: 'code_update'; html?: string; css?: string; javascript?: string }
+  | { type: 'edit_patches'; patches: EditPatch[] }
   | { type: 'image_generated'; url: string; prompt: string }
 
 export interface ChatMessage {

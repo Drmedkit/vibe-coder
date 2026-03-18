@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChatMode, CodeState, Language, ChatMessage } from '@/lib/types'
+import { ChatMode, CodeState, Language, ChatMessage, EditPatch } from '@/lib/types'
 import { CodeEditor } from '@/components/CodeEditor'
 import { Preview } from '@/components/Preview'
 import { ChatPanel } from '@/components/ChatPanel'
@@ -18,6 +18,7 @@ import {
   MessageSquare,
   FolderOpen,
   LogOut,
+  Undo2,
 } from 'lucide-react'
 
 const INITIAL_CODE: CodeState = {
@@ -72,6 +73,7 @@ function EditorContent() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(true)
   const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false)
   const [chatPrefill, setChatPrefill] = useState('')
+  const [codeHistory, setCodeHistory] = useState<CodeState[]>([])
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false)
   const [saveTitle, setSaveTitle] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -101,6 +103,37 @@ function EditorContent() {
       try { localStorage.setItem('vibe-coder-code', JSON.stringify(next)) } catch {}
       return next
     })
+  }
+
+  // Apply AI-suggested code update — pushes current state to undo stack first
+  const handleApplyCodeUpdate = (newCode: Partial<CodeState>) => {
+    setCodeHistory(prev => [...prev.slice(-19), code])
+    setCode(prev => {
+      const next = { ...prev, ...newCode }
+      try { localStorage.setItem('vibe-coder-code', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  // Apply edit patches from edits mode
+  const handleApplyPatches = (patches: EditPatch[]) => {
+    const newCode: Partial<CodeState> = {}
+    for (const patch of patches) {
+      const lang = patch.file === 'js' ? 'javascript' : patch.file as keyof CodeState
+      const current = (newCode[lang] ?? code[lang]) as string
+      if (current.includes(patch.find)) {
+        newCode[lang] = current.replace(patch.find, patch.replace)
+      }
+    }
+    if (Object.keys(newCode).length > 0) handleApplyCodeUpdate(newCode)
+  }
+
+  const handleUndo = () => {
+    if (codeHistory.length === 0) return
+    const previous = codeHistory[codeHistory.length - 1]
+    setCodeHistory(prev => prev.slice(0, -1))
+    setCode(previous)
+    try { localStorage.setItem('vibe-coder-code', JSON.stringify(previous)) } catch {}
   }
 
   const handleSendMessage = async (rawText: string, mode: ChatMode = 'agent') => {
@@ -144,9 +177,11 @@ function EditorContent() {
         timestamp: Date.now(),
         toolResult: data.codeUpdate
           ? { type: 'code_update', ...data.codeUpdate }
-          : data.imageGenerated
-            ? { type: 'image_generated', url: data.imageGenerated.url, prompt: data.imageGenerated.prompt }
-            : undefined,
+          : data.editPatches
+            ? { type: 'edit_patches', patches: data.editPatches }
+            : data.imageGenerated
+              ? { type: 'image_generated', url: data.imageGenerated.url, prompt: data.imageGenerated.prompt }
+              : undefined,
       }
 
       setMessages(prev => [...prev, botMessage])
@@ -337,6 +372,15 @@ function EditorContent() {
           </button>
 
           <button
+            onClick={handleUndo}
+            disabled={codeHistory.length === 0}
+            className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+            title={codeHistory.length > 0 ? `Ongedaan maken (${codeHistory.length})` : 'Niets om ongedaan te maken'}
+          >
+            <Undo2 size={18} />
+          </button>
+
+          <button
             onClick={() => setIsPreviewOpen(!isPreviewOpen)}
             className={`p-1.5 rounded-md transition-colors ${isPreviewOpen ? 'bg-[#FEC603]/30 text-[#FEC603]' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}
           >
@@ -366,6 +410,8 @@ function EditorContent() {
               onSendMessage={handleSendMessage}
               isProcessing={isProcessing}
               onApplyCode={(lang, codeStr) => handleCodeChange(lang as Language, codeStr)}
+              onApplyCodeUpdate={handleApplyCodeUpdate}
+              onApplyPatches={handleApplyPatches}
               currentCode={code}
               prefill={chatPrefill}
               onPrefillConsumed={() => setChatPrefill('')}

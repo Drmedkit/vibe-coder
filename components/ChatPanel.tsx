@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import React from 'react'
-import { ChatMessage, ChatMode, CodeState, ToolResult } from '@/lib/types'
+import { ChatMessage, ChatMode, CodeState, EditPatch, ToolResult } from '@/lib/types'
 import { Send, Loader2, Check, MessageSquarePlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
@@ -13,6 +13,8 @@ interface ChatPanelProps {
   onSendMessage: (message: string, mode: ChatMode) => void
   isProcessing: boolean
   onApplyCode: (lang: ApplyLang, code: string) => void
+  onApplyCodeUpdate: (code: Partial<CodeState>) => void
+  onApplyPatches: (patches: EditPatch[]) => void
   currentCode: CodeState
   prefill?: string
   onPrefillConsumed?: () => void
@@ -136,7 +138,66 @@ function MiniPreview({
   )
 }
 
-export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, currentCode, prefill, onPrefillConsumed }: ChatPanelProps) {
+function EditPreview({
+  patches,
+  currentCode,
+  onAccept,
+}: {
+  patches: EditPatch[]
+  currentCode: CodeState
+  onAccept: () => void
+}) {
+  const [accepted, setAccepted] = useState(false)
+
+  // Show which patches can actually be found in the current code
+  const patchStatus = patches.map(p => {
+    const src = p.file === 'js' ? currentCode.javascript : currentCode[p.file as 'html' | 'css']
+    return { ...p, found: src.includes(p.find) }
+  })
+  const anyFound = patchStatus.some(p => p.found)
+
+  const FILE_LABEL: Record<string, string> = { html: 'HTML', css: 'CSS', js: 'JS' }
+
+  return (
+    <div className="mt-3 rounded-lg overflow-hidden border border-gray-700 bg-gray-900/50 text-xs">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900">
+        <span className="text-gray-400">Voorgestelde aanpassing</span>
+        {anyFound ? (
+          <button
+            onClick={() => { setAccepted(true); onAccept() }}
+            disabled={accepted}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded font-medium transition-all ${
+              accepted
+                ? 'bg-green-900/40 text-green-400 border border-green-800/60'
+                : 'bg-[#E1014A] hover:bg-[#c1013d] text-white'
+            }`}
+          >
+            {accepted ? <><Check className="w-3 h-3" />Overgenomen</> : 'Overnemen'}
+          </button>
+        ) : (
+          <span className="text-red-400 text-[10px]">Niet gevonden in huidige code</span>
+        )}
+      </div>
+      <div className="divide-y divide-gray-800">
+        {patchStatus.map((p, i) => (
+          <div key={i} className={`p-2 space-y-1 ${!p.found ? 'opacity-40' : ''}`}>
+            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded border font-medium ${LANG_COLOR[p.file === 'js' ? 'javascript' : p.file]}`}>
+              {FILE_LABEL[p.file]}
+            </span>
+            <div className="bg-red-950/40 border border-red-900/40 rounded px-2 py-1 font-mono whitespace-pre-wrap text-red-300 leading-relaxed">
+              {'- '}{p.find}
+            </div>
+            <div className="bg-green-950/40 border border-green-900/40 rounded px-2 py-1 font-mono whitespace-pre-wrap text-green-300 leading-relaxed">
+              {'+ '}{p.replace}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, onApplyCodeUpdate, onApplyPatches, currentCode, prefill, onPrefillConsumed }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<ChatMode>('agent')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -246,10 +307,21 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
                             javascript: toolResult.javascript,
                           }}
                           onAccept={() => {
-                            if (toolResult.html !== undefined) onApplyCode('html', toolResult.html)
-                            if (toolResult.css !== undefined) onApplyCode('css', toolResult.css)
-                            if (toolResult.javascript !== undefined) onApplyCode('javascript', toolResult.javascript)
+                            onApplyCodeUpdate({
+                              html: toolResult.html,
+                              css: toolResult.css,
+                              javascript: toolResult.javascript,
+                            })
                           }}
+                        />
+                      )}
+
+                      {/* Tool result: edit_patches — show diff view */}
+                      {toolResult?.type === 'edit_patches' && (
+                        <EditPreview
+                          patches={toolResult.patches}
+                          currentCode={currentCode}
+                          onAccept={() => onApplyPatches(toolResult.patches)}
                         />
                       )}
 
@@ -281,11 +353,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
                         <MiniPreview
                           currentCode={currentCode}
                           suggested={fallbackSuggested}
-                          onAccept={() => {
-                            Object.entries(fallbackSuggested).forEach(([lang, code]) => {
-                              onApplyCode(lang as ApplyLang, code!)
-                            })
-                          }}
+                          onAccept={() => onApplyCodeUpdate(fallbackSuggested)}
                         />
                       )}
                     </>
