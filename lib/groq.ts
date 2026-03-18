@@ -26,9 +26,9 @@ export interface AIResponse {
 
 const MODELS = {
   agent: 'moonshotai/kimi-k2.5',
-  qa: 'nvidia/nemotron-3-super-120b-a12b',
+  qa: 'nvidia/nemotron-3-super-120b-a12b:free',
   edit: 'openai/gpt-5.4-nano',
-  fallback: 'nvidia/nemotron-3-super-120b-a12b',
+  fallback: 'nvidia/nemotron-3-super-120b-a12b:free',
 } as const
 
 const SYSTEM_PROMPTS: Record<ChatMode, string> = {
