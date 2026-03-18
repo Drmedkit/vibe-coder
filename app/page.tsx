@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CodeState, Language, ChatMessage } from '@/lib/types'
+import { ChatMode, CodeState, Language, ChatMessage } from '@/lib/types'
 import { CodeEditor } from '@/components/CodeEditor'
 import { Preview } from '@/components/Preview'
 import { ChatPanel } from '@/components/ChatPanel'
@@ -103,7 +103,7 @@ function EditorContent() {
     })
   }
 
-  const handleSendMessage = async (rawText: string) => {
+  const handleSendMessage = async (rawText: string, mode: ChatMode = 'agent') => {
     // Strip any base64 data URLs — replace with readable placeholder
     const text = rawText.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]{20,}/g, '[afbeelding]')
 
@@ -124,6 +124,7 @@ function EditorContent() {
         body: JSON.stringify({
           message: text,
           code,
+          mode,
           history: messages.slice(-10).map(m => ({
             role: m.role,
             // Strip base64 image data from history — replace with text reference

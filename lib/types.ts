@@ -1,3 +1,5 @@
+export type ChatMode = 'agent' | 'qa' | 'edit'
+
 export enum Language {
   HTML = 'html',
   CSS = 'css',

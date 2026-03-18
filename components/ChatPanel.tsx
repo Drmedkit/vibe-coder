@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import React from 'react'
-import { ChatMessage, CodeState, ToolResult } from '@/lib/types'
+import { ChatMessage, ChatMode, CodeState, ToolResult } from '@/lib/types'
 import { Send, Loader2, Check, MessageSquarePlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
@@ -10,13 +10,19 @@ type ApplyLang = 'html' | 'css' | 'javascript'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string, mode: ChatMode) => void
   isProcessing: boolean
   onApplyCode: (lang: ApplyLang, code: string) => void
   currentCode: CodeState
   prefill?: string
   onPrefillConsumed?: () => void
 }
+
+const MODE_CONFIG: { mode: ChatMode; label: string; description: string }[] = [
+  { mode: 'agent', label: 'Agent', description: 'Bouw iets nieuws of grote aanpassingen' },
+  { mode: 'qa', label: 'Uitleg', description: 'Vragen stellen, code laten uitleggen' },
+  { mode: 'edit', label: 'Edits', description: 'Kleine snelle aanpassingen' },
+]
 
 const LANG_LABEL: Record<string, string> = {
   html: 'HTML',
@@ -132,6 +138,7 @@ function MiniPreview({
 
 export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, currentCode, prefill, onPrefillConsumed }: ChatPanelProps) {
   const [input, setInput] = useState('')
+  const [mode, setMode] = useState<ChatMode>('agent')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -156,7 +163,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isProcessing) return
-    onSendMessage(input)
+    onSendMessage(input, mode)
     setInput('')
   }
 
@@ -294,14 +301,37 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-900">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-900 space-y-2">
+        {/* Mode selector */}
+        <div className="flex gap-1">
+          {MODE_CONFIG.map(({ mode: m, label, description }) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              title={description}
+              className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                mode === m
+                  ? 'bg-[#E1014A] text-white'
+                  : 'bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2">
           <input
             type="text"
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Vraag iets aan de AI..."
+            placeholder={
+              mode === 'agent' ? 'Bouw iets of vraag grote aanpassingen...' :
+              mode === 'qa' ? 'Stel een vraag over je code...' :
+              'Beschrijf een kleine aanpassing...'
+            }
             className="flex-1 bg-gray-900 text-gray-100 text-sm rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#E1014A] border border-gray-800"
             disabled={isProcessing}
           />
