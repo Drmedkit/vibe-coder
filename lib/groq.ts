@@ -26,9 +26,9 @@ export interface AIResponse {
 
 const MODELS = {
   agent: 'moonshotai/kimi-k2.5',
-  qa: 'nvidia/nemotron-super-49b-v1',
-  edit: 'openai/gpt-4.1-nano',
-  fallback: 'nvidia/nemotron-super-49b-v1',
+  qa: 'nvidia/nemotron-3-super-120b-a12b',
+  edit: 'openai/gpt-5.4-nano',
+  fallback: 'nvidia/nemotron-3-super-120b-a12b',
 } as const
 
 const SYSTEM_PROMPTS: Record<ChatMode, string> = {
@@ -160,7 +160,7 @@ ${codeContext.javascript}
     raw = await callModel(MODELS[mode], messages, MAX_TOKENS[mode])
   } catch (e: unknown) {
     const status = (e as { status?: number })?.status
-    if (status === 402 || status === 429) {
+    if (status === 402 || status === 429 || status === 404) {
       // Out of credits or rate limited — fall back to nemotron
       raw = await callModel(MODELS.fallback, messages, MAX_TOKENS[mode])
     } else {

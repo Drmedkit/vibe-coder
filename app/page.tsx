@@ -137,13 +137,6 @@ function EditorContent() {
 
       const data = await response.json()
 
-      // Apply code update immediately if present
-      if (data.codeUpdate) {
-        if (data.codeUpdate.html !== undefined) handleCodeChange(Language.HTML, data.codeUpdate.html)
-        if (data.codeUpdate.css !== undefined) handleCodeChange(Language.CSS, data.codeUpdate.css)
-        if (data.codeUpdate.javascript !== undefined) handleCodeChange(Language.JAVASCRIPT, data.codeUpdate.javascript)
-      }
-
       const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',

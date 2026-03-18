@@ -236,7 +236,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
                         </ReactMarkdown>
                       </div>
 
-                      {/* Tool result: code_update — auto-applied, show MiniPreview */}
+                      {/* Tool result: code_update — show preview, user must click Overnemen */}
                       {toolResult?.type === 'code_update' && (
                         <MiniPreview
                           currentCode={currentCode}
@@ -245,7 +245,11 @@ export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, 
                             css: toolResult.css,
                             javascript: toolResult.javascript,
                           }}
-                          autoApplied={true}
+                          onAccept={() => {
+                            if (toolResult.html !== undefined) onApplyCode('html', toolResult.html)
+                            if (toolResult.css !== undefined) onApplyCode('css', toolResult.css)
+                            if (toolResult.javascript !== undefined) onApplyCode('javascript', toolResult.javascript)
+                          }}
                         />
                       )}
 
