@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { CodeState } from '@/lib/types'
 
 interface PreviewProps {
@@ -27,6 +27,11 @@ export function Preview({ code }: PreviewProps) {
   </body>
 </html>`, [code])
 
+  // Force iframe remount on every content change — React 19 doesn't reliably
+  // reload the iframe when only srcDoc changes on an existing DOM node.
+  const [iframeKey, setIframeKey] = useState(0)
+  useEffect(() => { setIframeKey(k => k + 1) }, [srcDoc])
+
   return (
     <div className="h-full flex flex-col bg-gray-950">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-900">
@@ -34,6 +39,7 @@ export function Preview({ code }: PreviewProps) {
       </div>
       <div className="flex-1 relative bg-white">
         <iframe
+          key={iframeKey}
           srcDoc={srcDoc}
           className="absolute inset-0 w-full h-full border-none"
           sandbox="allow-scripts allow-modals"
