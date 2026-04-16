@@ -1,10 +1,10 @@
 import OpenAI from 'openai'
-import { generateGameAsset } from './imageGeneration'
 import { ChatMode, EditPatch } from './types'
 
 const client = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
+  timeout: 55000,
 })
 
 export interface CodeContext {
@@ -23,6 +23,7 @@ export interface AIResponse {
   codeUpdate?: { html?: string; css?: string; javascript?: string }
   editPatches?: EditPatch[]
   imageGenerated?: { url: string; prompt: string }
+  imageRequest?: { prompt: string; assetType: string }
 }
 
 const MODELS = {
@@ -81,8 +82,9 @@ Regels:
 - Geef ALLEEN de tags terug, geen extra tekst of markdown buiten de tags.`,
 }
 
+// Reduced from 8192 — large completions were the primary cause of Vercel timeouts
 const MAX_TOKENS: Record<ChatMode, number> = {
-  agent: 8192,
+  agent: 4096,
   qa: 2048,
   edit: 4096,
 }
@@ -116,18 +118,59 @@ function extractImageTag(raw: string): { prompt: string; assetType: string } | u
     : { prompt: match[2], assetType: match[1] }
 }
 
-function parseAIResponse(raw: string): AIResponse & { _generateImage?: { prompt: string; assetType: string } } {
+function buildMessages(
+  userMessage: string,
+  codeContext: CodeContext,
+  chatHistory: ChatMessage[],
+  mode: ChatMode
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const contextBlock = `--- HUIDIGE CODE ---
+HTML:
+${codeContext.html}
+
+CSS:
+${codeContext.css}
+
+JavaScript:
+${codeContext.javascript}
+--- EINDE CODE ---`
+
+  return [
+    { role: 'system', content: SYSTEM_PROMPTS[mode] },
+    { role: 'system', content: contextBlock },
+    ...chatHistory.slice(-10).map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    })),
+    { role: 'user', content: userMessage },
+  ]
+}
+
+function parseRawResponse(raw: string, mode: ChatMode): AIResponse {
+  if (mode === 'edit') {
+    const text = extractTag(raw, 'text') ?? raw
+    const patches = extractEditPatches(raw)
+    return { text, editPatches: patches.length > 0 ? patches : undefined }
+  }
+
   const text = extractTag(raw, 'text') ?? raw
   const html = extractTag(raw, 'html')
   const css = extractTag(raw, 'css')
   const js = extractTag(raw, 'js')
-  const imageRequest = extractImageTag(raw)
+  const imageTag = extractImageTag(raw)
 
-  return {
+  const result: AIResponse = {
     text,
     codeUpdate: (html || css || js) ? { html, css, javascript: js } : undefined,
-    _generateImage: imageRequest,
   }
+
+  // Return image as a request for the frontend to handle asynchronously —
+  // previously this was generated inline, which added 10-20s to every chat response
+  if (imageTag && mode === 'agent') {
+    result.imageRequest = { prompt: imageTag.prompt, assetType: imageTag.assetType }
+  }
+
+  return result
 }
 
 async function callModel(
@@ -144,35 +187,58 @@ async function callModel(
   return response.choices[0]?.message?.content || ''
 }
 
+/**
+ * Streams the AI response token-by-token, calling onDelta for each chunk.
+ * Returns the fully parsed AIResponse once the stream completes.
+ * Falls back to a non-streaming call if the primary model returns 402/429/404.
+ */
+export async function streamCodeResponse(
+  userMessage: string,
+  codeContext: CodeContext,
+  chatHistory: ChatMessage[] = [],
+  mode: ChatMode = 'agent',
+  onDelta: (delta: string) => void
+): Promise<AIResponse> {
+  const messages = buildMessages(userMessage, codeContext, chatHistory, mode)
+  let raw = ''
+
+  try {
+    const stream = await client.chat.completions.create({
+      model: MODELS[mode],
+      messages,
+      temperature: 0.7,
+      max_tokens: MAX_TOKENS[mode],
+      stream: true,
+    })
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || ''
+      if (delta) {
+        raw += delta
+        onDelta(delta)
+      }
+    }
+  } catch (e: unknown) {
+    const status = (e as { status?: number })?.status
+    if (status === 402 || status === 429 || status === 404) {
+      raw = await callModel(MODELS.fallback, messages, MAX_TOKENS[mode])
+    } else {
+      throw e
+    }
+  }
+
+  return parseRawResponse(raw, mode)
+}
+
 export async function generateCodeResponse(
   userMessage: string,
   codeContext: CodeContext,
   chatHistory: ChatMessage[] = [],
   mode: ChatMode = 'agent'
 ): Promise<AIResponse> {
-  const contextBlock = `--- HUIDIGE CODE ---
-HTML:
-${codeContext.html}
-
-CSS:
-${codeContext.css}
-
-JavaScript:
-${codeContext.javascript}
---- EINDE CODE ---`
-
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: 'system', content: SYSTEM_PROMPTS[mode] },
-    // Q&A still gets code context so it can answer questions about it
-    { role: 'system', content: contextBlock },
-    ...chatHistory.slice(-10).map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-    })),
-    { role: 'user', content: userMessage },
-  ]
-
+  const messages = buildMessages(userMessage, codeContext, chatHistory, mode)
   let raw: string
+
   try {
     raw = await callModel(MODELS[mode], messages, MAX_TOKENS[mode])
   } catch (e: unknown) {
@@ -184,40 +250,5 @@ ${codeContext.javascript}
     }
   }
 
-  // Edit mode: parse patches instead of full file replacement
-  if (mode === 'edit') {
-    const text = extractTag(raw, 'text') ?? raw
-    const patches = extractEditPatches(raw)
-    return { text, editPatches: patches.length > 0 ? patches : undefined }
-  }
-
-  const result = parseAIResponse(raw)
-
-  // Image generation only in agent mode
-  if (result._generateImage && mode === 'agent') {
-    const { prompt, assetType } = result._generateImage
-    delete result._generateImage
-
-    try {
-      const { prisma } = await import('./prisma')
-      const dataUrl = await generateGameAsset(prompt, assetType as 'character' | 'background' | 'item' | 'icon')
-      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
-      const asset = await prisma.asset.create({
-        data: { prompt, assetType, data: base64, mimeType: 'image/png' },
-      })
-      const url = `/api/images/${asset.id}`
-      result.imageGenerated = { url, prompt }
-
-      const imgTag = `<img src="${url}" alt="${prompt}" style="max-width:100%;">`
-      const currentHtml = result.codeUpdate?.html ?? codeContext.html
-      result.codeUpdate = { ...result.codeUpdate, html: currentHtml + '\n' + imgTag }
-    } catch (e) {
-      console.error('Image generation failed:', e)
-      result.text += '\n\n(Afbeelding genereren mislukt, probeer de Assets knop.)'
-    }
-  } else {
-    delete result._generateImage
-  }
-
-  return result
+  return parseRawResponse(raw, mode)
 }
