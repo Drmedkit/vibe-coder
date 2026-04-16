@@ -176,14 +176,18 @@ function parseRawResponse(raw: string, mode: ChatMode): AIResponse {
 async function callModel(
   model: string,
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
-  maxTokens: number
+  maxTokens: number,
+  signal?: AbortSignal
 ): Promise<string> {
-  const response = await client.chat.completions.create({
-    model,
-    messages,
-    temperature: 0.7,
-    max_tokens: maxTokens,
-  })
+  const response = await client.chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: maxTokens,
+    },
+    signal ? { signal } : undefined,
+  )
   return response.choices[0]?.message?.content || ''
 }
 
@@ -197,21 +201,26 @@ export async function streamCodeResponse(
   codeContext: CodeContext,
   chatHistory: ChatMessage[] = [],
   mode: ChatMode = 'agent',
-  onDelta: (delta: string) => void
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
 ): Promise<AIResponse> {
   const messages = buildMessages(userMessage, codeContext, chatHistory, mode)
   let raw = ''
 
   try {
-    const stream = await client.chat.completions.create({
-      model: MODELS[mode],
-      messages,
-      temperature: 0.7,
-      max_tokens: MAX_TOKENS[mode],
-      stream: true,
-    })
+    const stream = await client.chat.completions.create(
+      {
+        model: MODELS[mode],
+        messages,
+        temperature: 0.7,
+        max_tokens: MAX_TOKENS[mode],
+        stream: true,
+      },
+      signal ? { signal } : undefined,
+    )
 
     for await (const chunk of stream) {
+      if (signal?.aborted) break
       const delta = chunk.choices[0]?.delta?.content || ''
       if (delta) {
         raw += delta
@@ -219,9 +228,10 @@ export async function streamCodeResponse(
       }
     }
   } catch (e: unknown) {
+    if (signal?.aborted) throw e
     const status = (e as { status?: number })?.status
     if (status === 402 || status === 429 || status === 404) {
-      raw = await callModel(MODELS.fallback, messages, MAX_TOKENS[mode])
+      raw = await callModel(MODELS.fallback, messages, MAX_TOKENS[mode], signal)
     } else {
       throw e
     }

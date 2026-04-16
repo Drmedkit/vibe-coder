@@ -8,11 +8,14 @@ import { Plus, Trash2, Clock, GitFork, FolderOpen } from 'lucide-react'
 interface Project {
   id: string
   title: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface FullProject extends Project {
   htmlCode: string
   cssCode: string
   jsCode: string
-  createdAt: string
-  updatedAt: string
 }
 
 export default function ProjectsPage() {
@@ -108,26 +111,35 @@ export default function ProjectsPage() {
     }
   }
 
-  const handleForkProject = (project: Project) => {
-    sessionStorage.setItem('vibe_fork', JSON.stringify({
-      code: {
-        html: project.htmlCode,
-        css: project.cssCode,
-        javascript: project.jsCode,
+  const openWithFullContent = async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`)
+      const data = await response.json()
+      if (!response.ok || !data.project) {
+        alert('Project kon niet worden geladen.')
+        return
       }
-    }))
-    router.push('/')
+      const project = data.project as FullProject
+      sessionStorage.setItem('vibe_fork', JSON.stringify({
+        code: {
+          html: project.htmlCode,
+          css: project.cssCode,
+          javascript: project.jsCode,
+        }
+      }))
+      router.push('/')
+    } catch (error) {
+      console.error('Open project error:', error)
+      alert('Er ging iets mis bij het openen.')
+    }
+  }
+
+  const handleForkProject = (project: Project) => {
+    openWithFullContent(project.id)
   }
 
   const handleOpenProject = (project: Project) => {
-    sessionStorage.setItem('vibe_fork', JSON.stringify({
-      code: {
-        html: project.htmlCode,
-        css: project.cssCode,
-        javascript: project.jsCode,
-      }
-    }))
-    router.push('/')
+    openWithFullContent(project.id)
   }
 
   const formatDate = (dateString: string) => {
