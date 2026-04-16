@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateGameAsset } from '@/lib/imageGeneration'
 import { prisma } from '@/lib/prisma'
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     const { prompt, assetType = 'item' } = await request.json() as {

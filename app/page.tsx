@@ -136,19 +136,52 @@ function EditorContent() {
     try { localStorage.setItem('vibe-coder-code', JSON.stringify(previous)) } catch {}
   }
 
+  // Fires off image generation after the chat response, updating the message when done.
+  // Decoupled from the chat stream so image gen (10-20s) no longer blocks text responses.
+  const generateImageForMessage = useCallback(async (
+    messageId: string,
+    imageRequest: { prompt: string; assetType: string }
+  ) => {
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(imageRequest),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setMessages(prev => prev.map(m =>
+        m.id === messageId
+          ? { ...m, toolResult: { type: 'image_generated' as const, url: data.url, prompt: data.prompt } }
+          : m
+      ))
+    } catch {
+      // image generation failure is non-critical
+    }
+  }, [])
+
   const handleSendMessage = async (rawText: string, mode: ChatMode = 'agent') => {
     // Strip any base64 data URLs — replace with readable placeholder
     const text = rawText.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]{20,}/g, '[afbeelding]')
 
-    const newMessage: ChatMessage = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
       timestamp: Date.now()
     }
 
-    setMessages(prev => [...prev, newMessage])
+    setMessages(prev => [...prev, userMessage])
     setIsProcessing(true)
+
+    // Add bot placeholder immediately so the user sees a response forming
+    const botId = (Date.now() + 1).toString()
+    setMessages(prev => [...prev, {
+      id: botId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    }])
 
     try {
       const response = await fetch('/api/chat', {
@@ -168,32 +201,78 @@ function EditorContent() {
         })
       })
 
-      const data = await response.json()
-
-      const botMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.text || data.response || 'Sorry, er ging iets mis.',
-        timestamp: Date.now(),
-        toolResult: data.codeUpdate
-          ? { type: 'code_update', ...data.codeUpdate }
-          : data.editPatches
-            ? { type: 'edit_patches', patches: data.editPatches }
-            : data.imageGenerated
-              ? { type: 'image_generated', url: data.imageGenerated.url, prompt: data.imageGenerated.prompt }
-              : undefined,
+      if (!response.ok || !response.body) {
+        throw new Error('Request failed')
       }
 
-      setMessages(prev => [...prev, botMessage])
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let sseBuffer = ''
+      let rawAccumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        sseBuffer += decoder.decode(value, { stream: true })
+        const lines = sseBuffer.split('\n\n')
+        sseBuffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+
+            if (event.type === 'delta') {
+              // Extract the text between <text>...</text> for real-time display
+              rawAccumulated += event.content
+              const textStart = rawAccumulated.indexOf('<text>')
+              if (textStart !== -1) {
+                const inner = rawAccumulated.slice(textStart + 6)
+                const textEnd = inner.indexOf('</text>')
+                const visibleText = textEnd === -1 ? inner : inner.slice(0, textEnd)
+                if (visibleText) {
+                  setMessages(prev => prev.map(m =>
+                    m.id === botId ? { ...m, content: visibleText } : m
+                  ))
+                }
+              }
+            } else if (event.type === 'done') {
+              const { text: finalText, codeUpdate, editPatches, imageRequest } = event
+              setMessages(prev => prev.map(m =>
+                m.id === botId ? {
+                  ...m,
+                  content: finalText || 'Sorry, er ging iets mis.',
+                  toolResult: codeUpdate
+                    ? { type: 'code_update' as const, ...codeUpdate }
+                    : editPatches
+                      ? { type: 'edit_patches' as const, patches: editPatches }
+                      : undefined,
+                } : m
+              ))
+              // Generate image in the background — won't block or timeout the chat
+              if (imageRequest) {
+                generateImageForMessage(botId, imageRequest)
+              }
+            } else if (event.type === 'error') {
+              setMessages(prev => prev.map(m =>
+                m.id === botId
+                  ? { ...m, content: 'Sorry, er ging iets mis bij het verbinden met de AI.' }
+                  : m
+              ))
+            }
+          } catch {
+            // ignore malformed SSE lines
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to generate response:', error)
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Sorry, er ging iets mis bij het verbinden met de AI.',
-        timestamp: Date.now()
-      }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages(prev => prev.map(m =>
+        m.id === botId
+          ? { ...m, content: 'Sorry, er ging iets mis bij het verbinden met de AI.' }
+          : m
+      ))
     } finally {
       setIsProcessing(false)
     }
