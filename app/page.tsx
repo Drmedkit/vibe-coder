@@ -48,6 +48,25 @@ interface WorkspaceState {
   majorBuildCount: number
 }
 
+interface ChatApiData {
+  error?: string
+  usingFallback?: boolean
+  text?: string
+  questions?: unknown
+  suggestions?: unknown
+  findings?: unknown
+  suggestedAdjustments?: unknown
+  included?: unknown
+  notIncludedYet?: unknown
+  nextPolishSuggestions?: unknown
+  readiness?: { readyForFirstBuild?: boolean; reason?: string }
+  intent?: unknown
+  codeUpdate?: Partial<CodeState>
+  editPatches?: EditPatch[]
+  imageGenerated?: { url: string; prompt: string }
+  briefPatch?: unknown
+}
+
 function defaultWorkspace(): WorkspaceState {
   return {
     code: INITIAL_CODE,
@@ -138,6 +157,17 @@ function persistDraft(workspace: WorkspaceState) {
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(workspace))
   } catch {}
+}
+
+async function readJsonResponse(response: Response): Promise<ChatApiData> {
+  const raw = await response.text()
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed as ChatApiData : {}
+  } catch {
+    return { error: raw.slice(0, 240) }
+  }
 }
 
 function EditorContent() {
@@ -328,19 +358,29 @@ function EditorContent() {
         return
       }
 
-      const data = await response.json()
+      const data = await readJsonResponse(response)
       if (response.status === 429) {
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: data.error || 'Je hebt de AI-limiet bereikt. Wacht even en probeer daarna opnieuw.',
+          content: typeof data.error === 'string'
+            ? data.error
+            : 'Je hebt de AI-limiet bereikt. Wacht even en probeer daarna opnieuw.',
           timestamp: Date.now(),
         })
         return
       }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Chat request failed')
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: typeof data.error === 'string'
+            ? data.error
+            : 'De AI is nu niet bereikbaar. Je idee staat nog in de chat; probeer het zo opnieuw.',
+          timestamp: Date.now(),
+        })
+        return
       }
 
       if (data.usingFallback) setUsingFallbackModel(true)
@@ -384,7 +424,9 @@ function EditorContent() {
         role: 'assistant',
         content: isTimeout
           ? 'De AI deed er te lang over. Je werk is niet kapot. Probeer een kleinere vraag of maak eerst een kleine verbetering.'
-          : 'De verbinding met de AI is mislukt.',
+          : error instanceof Error && error.message
+            ? `De AI kon niet antwoorden: ${error.message}`
+            : 'De AI is nu niet bereikbaar. Probeer het zo opnieuw.',
         timestamp: Date.now(),
       })
     } finally {

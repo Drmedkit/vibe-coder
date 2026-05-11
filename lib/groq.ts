@@ -544,7 +544,7 @@ async function generateWithModelChain(
       lastError = error
       const status = (error as { status?: number })?.status
       if (status === 402) paidModelAvailable = false
-      if (status !== 402 && status !== 429 && status !== 404) throw error
+      console.error(`AI model candidate failed (${model}):`, error)
     }
   }
 
