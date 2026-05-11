@@ -1,30 +1,24 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
-import React from 'react'
-import { ChatMessage, ChatMode, CodeState, EditPatch, ToolResult } from '@/lib/types'
-import { Send, Loader2, Check, MessageSquarePlus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-
-type ApplyLang = 'html' | 'css' | 'javascript'
+import { BookOpen, Check, Hammer, Loader2, MessageSquarePlus, RefreshCw, Send, Wand2 } from 'lucide-react'
+import { BriefReadiness, ChatAction, ChatMessage, CodeState, CodeUpdateIntent, EditPatch, ProjectPhase, ToolResult } from '@/lib/types'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
-  onSendMessage: (message: string, mode: ChatMode) => void
+  onSendMessage: (message: string, action?: ChatAction) => void
   isProcessing: boolean
-  onApplyCode: (lang: ApplyLang, code: string) => void
-  onApplyCodeUpdate: (code: Partial<CodeState>) => void
+  onApplyCodeUpdate: (code: Partial<CodeState>, intent?: CodeUpdateIntent) => void
   onApplyPatches: (patches: EditPatch[]) => void
   currentCode: CodeState
-  prefill?: string
-  onPrefillConsumed?: () => void
+  input: string
+  onInputChange: (value: string) => void
+  usingFallbackModel?: boolean
+  phase: ProjectPhase
+  readiness: BriefReadiness
+  hasCode: boolean
 }
-
-const MODE_CONFIG: { mode: ChatMode; label: string; description: string }[] = [
-  { mode: 'agent', label: 'Agent', description: 'Bouw iets nieuws of grote aanpassingen' },
-  { mode: 'qa', label: 'Uitleg', description: 'Vragen stellen, code laten uitleggen' },
-  { mode: 'edit', label: 'Edits', description: 'Kleine snelle aanpassingen' },
-]
 
 const LANG_LABEL: Record<string, string> = {
   html: 'HTML',
@@ -33,103 +27,82 @@ const LANG_LABEL: Record<string, string> = {
 }
 
 const LANG_COLOR: Record<string, string> = {
-  html: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  css: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  javascript: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  html: 'bg-[#F06A01]/18 text-[#ffb078] border-[#F06A01]/35',
+  css: 'bg-[#3EBAC8]/16 text-[#9ceaf1] border-[#3EBAC8]/35',
+  javascript: 'bg-[#F9CD00]/16 text-[#ffe46a] border-[#F9CD00]/35',
 }
 
-function parseCodeBlocks(content: string): Partial<CodeState> {
-  const result: Partial<CodeState> = {}
-  const regex = /```(html|css|javascript|js)\n([\s\S]*?)```/g
-  let match
-  while ((match = regex.exec(content)) !== null) {
-    const lang = (match[1] === 'js' ? 'javascript' : match[1]) as keyof CodeState
-    result[lang] = match[2].replace(/\n$/, '')
-  }
-  return result
-}
+const PROCESSING_HINTS = [
+  { afterMs: 0, text: 'AI denkt mee' },
+  { afterMs: 12000, text: 'Grote builds kunnen even duren. Wacht met opnieuw klikken.' },
+  { afterMs: 30000, text: 'Nog bezig. De AI maakt of controleert meerdere bestanden.' },
+  { afterMs: 50000, text: 'Dit duurt lang. Als het stopt, probeer dan een kleinere vraag.' },
+]
 
 function buildSrcDoc(code: CodeState): string {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${code.css}</style></head><body>${code.html}<script>try{${code.javascript}}catch(e){console.error(e)}</script></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${code.css}</style></head><body>${code.html}<script>try{${code.javascript.replace(/<\/script/gi, '<\\/script')}}catch(e){console.error(e)}</script></body></html>`
 }
 
 function MiniPreview({
   currentCode,
   suggested,
+  intent,
   onAccept,
-  autoApplied = false,
 }: {
   currentCode: CodeState
   suggested: Partial<CodeState>
-  onAccept?: () => void
-  autoApplied?: boolean
+  intent?: CodeUpdateIntent
+  onAccept: (intent?: CodeUpdateIntent) => void
 }) {
-  const [accepted, setAccepted] = useState(autoApplied)
+  const [accepted, setAccepted] = useState(false)
 
   const merged: CodeState = {
     html: suggested.html ?? currentCode.html,
     css: suggested.css ?? currentCode.css,
     javascript: suggested.javascript ?? currentCode.javascript,
   }
-
-  const srcDoc = useMemo(() => buildSrcDoc(merged), [merged.html, merged.css, merged.javascript])
-
-  const changedTabs = Object.keys(suggested) as (keyof CodeState)[]
+  const srcDoc = buildSrcDoc(merged)
+  const changedTabs = Object.keys(suggested).filter(key => suggested[key as keyof CodeState] !== undefined) as (keyof CodeState)[]
 
   const handleAccept = () => {
     setAccepted(true)
-    onAccept?.()
+    onAccept(intent)
   }
 
   return (
-    <div className="mt-3 rounded-lg overflow-hidden border border-gray-700 bg-gray-900/50">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Voorgesteld resultaat</span>
+    <div className="mt-3 overflow-hidden rounded-md border border-white/10 bg-[#161616]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#111111] px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-xs text-white/50">Voorgesteld resultaat</span>
           <div className="flex gap-1">
             {changedTabs.map(lang => (
               <span
                 key={lang}
-                className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${LANG_COLOR[lang]}`}
+                className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${LANG_COLOR[lang]}`}
               >
                 {LANG_LABEL[lang]}
               </span>
             ))}
           </div>
         </div>
-        {autoApplied ? (
-          <span className="flex items-center gap-1.5 text-xs px-3 py-1 rounded font-medium bg-green-900/40 text-green-400 border border-green-800/60">
-            <Check className="w-3 h-3" />
-            Automatisch toegepast
-          </span>
-        ) : (
-          <button
-            onClick={handleAccept}
-            disabled={accepted}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded font-medium transition-all ${
-              accepted
-                ? 'bg-green-900/40 text-green-400 border border-green-800/60'
-                : 'bg-[#E1014A] hover:bg-[#c1013d] text-white'
-            }`}
-          >
-            {accepted ? (
-              <>
-                <Check className="w-3 h-3" />
-                Overgenomen
-              </>
-            ) : (
-              'Overnemen'
-            )}
-          </button>
-        )}
+        <button
+          onClick={handleAccept}
+          disabled={accepted}
+          className={`focus-ring flex shrink-0 items-center gap-1.5 rounded px-3 py-1 text-xs font-semibold transition active:translate-y-px ${
+            accepted
+              ? 'border border-[#7AC300]/40 bg-[#7AC300]/12 text-[#b6ef77]'
+              : 'bg-[#F9CD00] text-black hover:bg-[#e8bd00]'
+          }`}
+        >
+          <Check className="h-3 w-3" />
+          {accepted ? 'Overgenomen' : 'Overnemen'}
+        </button>
       </div>
 
-      {/* Preview iframe */}
-      <div className="relative bg-white" style={{ height: 180 }}>
+      <div className="relative h-44 bg-white">
         <iframe
           srcDoc={srcDoc}
-          className="absolute inset-0 w-full h-full border-none"
+          className="absolute inset-0 h-full w-full border-none"
           sandbox="allow-scripts allow-modals"
           title="Voorgestelde preview"
         />
@@ -148,49 +121,44 @@ function EditPreview({
   onAccept: () => void
 }) {
   const [accepted, setAccepted] = useState(false)
-
-  // Show which patches can actually be found in the current code
-  const patchStatus = patches.map(p => {
-    const src = p.file === 'js' || p.file === 'javascript' as string
-      ? currentCode.javascript
-      : currentCode[p.file as 'html' | 'css'] ?? ''
-    return { ...p, found: !!(src && p.find && src.includes(p.find)) }
+  const patchStatus = patches.map(patch => {
+    const source = patch.file === 'js' ? currentCode.javascript : currentCode[patch.file]
+    return { ...patch, found: source.includes(patch.find) }
   })
-  const anyFound = patchStatus.some(p => p.found)
-
-  const FILE_LABEL: Record<string, string> = { html: 'HTML', css: 'CSS', js: 'JS' }
+  const anyFound = patchStatus.some(patch => patch.found)
 
   return (
-    <div className="mt-3 rounded-lg overflow-hidden border border-gray-700 bg-gray-900/50 text-xs">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900">
-        <span className="text-gray-400">Voorgestelde aanpassing</span>
+    <div className="mt-3 overflow-hidden rounded-md border border-white/10 bg-[#161616] text-xs">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#111111] px-3 py-2">
+        <span className="text-white/50">Voorgestelde aanpassing</span>
         {anyFound ? (
           <button
             onClick={() => { setAccepted(true); onAccept() }}
             disabled={accepted}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded font-medium transition-all ${
+            className={`focus-ring flex items-center gap-1.5 rounded px-3 py-1 font-semibold transition active:translate-y-px ${
               accepted
-                ? 'bg-green-900/40 text-green-400 border border-green-800/60'
-                : 'bg-[#E1014A] hover:bg-[#c1013d] text-white'
+                ? 'border border-[#7AC300]/40 bg-[#7AC300]/12 text-[#b6ef77]'
+                : 'bg-[#F9CD00] text-black hover:bg-[#e8bd00]'
             }`}
           >
-            {accepted ? <><Check className="w-3 h-3" />Overgenomen</> : 'Overnemen'}
+            <Check className="h-3 w-3" />
+            {accepted ? 'Overgenomen' : 'Overnemen'}
           </button>
         ) : (
-          <span className="text-red-400 text-[10px]">Niet gevonden in huidige code</span>
+          <span className="text-[#ff7aa5]">Niet gevonden in huidige code</span>
         )}
       </div>
-      <div className="divide-y divide-gray-800">
-        {patchStatus.map((p, i) => (
-          <div key={i} className={`p-2 space-y-1 ${!p.found ? 'opacity-40' : ''}`}>
-            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded border font-medium ${LANG_COLOR[p.file === 'js' ? 'javascript' : p.file]}`}>
-              {FILE_LABEL[p.file]}
+      <div className="divide-y divide-white/10">
+        {patchStatus.map((patch, index) => (
+          <div key={`${patch.file}-${index}`} className={`space-y-1 p-2 ${patch.found ? '' : 'opacity-45'}`}>
+            <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${LANG_COLOR[patch.file === 'js' ? 'javascript' : patch.file]}`}>
+              {patch.file === 'js' ? 'JS' : patch.file.toUpperCase()}
             </span>
-            <div className="bg-red-950/40 border border-red-900/40 rounded px-2 py-1 font-mono whitespace-pre-wrap text-red-300 leading-relaxed">
-              {'- '}{p.find}
+            <div className="rounded border border-[#DD084B]/25 bg-[#DD084B]/10 px-2 py-1 font-mono whitespace-pre-wrap text-[#ff9abb]">
+              - {patch.find}
             </div>
-            <div className="bg-green-950/40 border border-green-900/40 rounded px-2 py-1 font-mono whitespace-pre-wrap text-green-300 leading-relaxed">
-              {'+ '}{p.replace}
+            <div className="rounded border border-[#7AC300]/25 bg-[#7AC300]/10 px-2 py-1 font-mono whitespace-pre-wrap text-[#c9f99a]">
+              + {patch.replace}
             </div>
           </div>
         ))}
@@ -199,226 +167,246 @@ function EditPreview({
   )
 }
 
-export function ChatPanel({ messages, onSendMessage, isProcessing, onApplyCode, onApplyCodeUpdate, onApplyPatches, currentCode, prefill, onPrefillConsumed }: ChatPanelProps) {
-  const [input, setInput] = useState('')
-  const [mode, setMode] = useState<ChatMode>('agent')
+export function ChatPanel({
+  messages,
+  onSendMessage,
+  isProcessing,
+  onApplyCodeUpdate,
+  onApplyPatches,
+  currentCode,
+  input,
+  onInputChange,
+  usingFallbackModel,
+  phase,
+  readiness,
+  hasCode,
+}: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  // Apply external prefill (e.g. from Asset Library)
-  useEffect(() => {
-    if (prefill) {
-      setInput(prefill)
-      inputRef.current?.focus()
-      onPrefillConsumed?.()
-    }
-  }, [prefill])
-
-  const prefillInput = (text: string) => {
-    setInput(text)
-    inputRef.current?.focus()
-  }
+  const [processingHint, setProcessingHint] = useState(PROCESSING_HINTS[0].text)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, isProcessing])
+
+  useEffect(() => {
+    if (!isProcessing) return
+
+    const startedAt = Date.now()
+    const reset = window.setTimeout(() => {
+      setProcessingHint(PROCESSING_HINTS[0].text)
+    }, 0)
+    const interval = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      const nextHint = PROCESSING_HINTS
+        .filter(hint => elapsed >= hint.afterMs)
+        .at(-1)?.text ?? PROCESSING_HINTS[0].text
+      setProcessingHint(nextHint)
+    }, 1000)
+
+    return () => {
+      window.clearTimeout(reset)
+      window.clearInterval(interval)
+    }
+  }, [isProcessing])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isProcessing) return
-    onSendMessage(input, mode)
-    setInput('')
+    onSendMessage(input)
+    onInputChange('')
+  }
+
+  const sendAction = (message: string, action?: ChatAction) => {
+    if (isProcessing) return
+    onInputChange('')
+    onSendMessage(message, action)
+  }
+
+  const prefillAction = (message: string) => {
+    onInputChange(message)
+    inputRef.current?.focus()
+  }
+
+  const prefillImageInChat = (prompt: string) => {
+    onInputChange(`Gebruik de afbeelding "${prompt}" en `)
+    inputRef.current?.focus()
   }
 
   return (
-    <div className="flex flex-col h-full bg-black">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-900">
-        <h2 className="text-sm font-semibold text-white">AI Assistent</h2>
+    <div className="flex h-full flex-col bg-[#0d0d0d]">
+      <div className="border-b border-white/10 bg-[#111111] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-white">AI assistent</h2>
+          {usingFallbackModel && (
+            <span className="rounded border border-[#F9CD00]/25 bg-[#F9CD00]/10 px-2 py-0.5 text-[10px] text-[#F9CD00]">
+              gratis model
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm mt-8">
-            <p>Stel een vraag of vraag om hulp!</p>
-            <p className="mt-2 text-xs">Bijvoorbeeld:</p>
-            <ul className="mt-2 space-y-1 text-xs">
-              <li>&quot;Maak een rode knop&quot;</li>
-              <li>&quot;Leg mijn code uit&quot;</li>
-              <li>&quot;Waarom werkt dit niet?&quot;</li>
-            </ul>
+          <div className="mt-6 rounded-md border border-white/10 bg-[#161616] p-4">
+            <p className="font-display text-2xl font-black leading-none text-white">BEGIN MET JOUW IDEE</p>
+            <p className="mt-3 text-sm leading-relaxed text-white/55">
+              Beschrijf rommelig wat je wilt maken. De AI stelt vragen, scherpt keuzes aan en bouwt pas wanneer er genoeg richting is.
+            </p>
+            <div className="mt-4 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/40">
+              De eerste build wordt beter als jij keuzes maakt over wat iemand doet, wat erin moet en hoe het moet voelen.
+            </div>
           </div>
         ) : (
-          messages.map((message) => {
-            const toolResult: ToolResult | undefined = message.toolResult
+          <div className="space-y-4">
+            {messages.map(message => {
+              const toolResult: ToolResult | undefined = message.toolResult
+              return (
+                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[92%] rounded-md px-4 py-3 ${message.role === 'user' ? 'bg-[#DD084B] text-white' : 'bg-[#161616] text-white border border-white/10'}`}>
+                    <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-2">
+                      <ReactMarkdown
+                        components={{
+                          code: ({ children, ...props }) => (
+                            <code className="rounded bg-black/45 px-1 py-0.5 text-xs" {...props}>
+                              {children}
+                            </code>
+                          ),
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
 
-            // For assistant messages without toolResult, fall back to markdown parsing
-            const fallbackSuggested = message.role === 'assistant' && !toolResult
-              ? parseCodeBlocks(message.content)
-              : {}
-            const hasFallbackSuggestion = Object.keys(fallbackSuggested).length > 0
-
-            return (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[90%] rounded-lg px-4 py-2 ${
-                    message.role === 'user'
-                      ? 'bg-[#E1014A] text-white'
-                      : 'bg-black text-white'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  ) : (
-                    <>
-                      <div className="prose prose-sm prose-invert max-w-none">
-                        <ReactMarkdown
-                          components={{
-                            pre: ({ children }) => (
-                              <pre className="bg-gray-950 p-3 rounded text-xs overflow-x-auto border border-gray-800 my-2">
-                                {children}
-                              </pre>
-                            ),
-                            code: ({ className, children, ...props }) => {
-                              const isBlock = /language-(\w+)/.exec(className || '')
-                              return isBlock ? (
-                                <code className={`text-xs ${className ?? ''}`} {...props}>
-                                  {children}
-                                </code>
-                              ) : (
-                                <code className="bg-gray-700 px-1 py-0.5 rounded text-xs" {...props}>
-                                  {children}
-                                </code>
-                              )
-                            },
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
-
-                      {/* Tool result: code_update — show preview, user must click Overnemen */}
-                      {toolResult?.type === 'code_update' && (
-                        <MiniPreview
-                          currentCode={currentCode}
-                          suggested={{
+                    {toolResult?.type === 'code_update' && (
+                      <MiniPreview
+                        currentCode={currentCode}
+                        intent={toolResult.intent}
+                        suggested={{
+                          html: toolResult.html,
+                          css: toolResult.css,
+                          javascript: toolResult.javascript,
+                        }}
+                        onAccept={(intent) => {
+                          onApplyCodeUpdate({
                             html: toolResult.html,
                             css: toolResult.css,
                             javascript: toolResult.javascript,
-                          }}
-                          onAccept={() => {
-                            onApplyCodeUpdate({
-                              html: toolResult.html,
-                              css: toolResult.css,
-                              javascript: toolResult.javascript,
-                            })
-                          }}
-                        />
-                      )}
+                          }, intent)
+                        }}
+                      />
+                    )}
 
-                      {/* Tool result: edit_patches — show diff view */}
-                      {toolResult?.type === 'edit_patches' && (
-                        <EditPreview
-                          patches={toolResult.patches}
-                          currentCode={currentCode}
-                          onAccept={() => onApplyPatches(toolResult.patches)}
-                        />
-                      )}
+                    {toolResult?.type === 'edit_patches' && (
+                      <EditPreview
+                        patches={toolResult.patches}
+                        currentCode={currentCode}
+                        onAccept={() => onApplyPatches(toolResult.patches)}
+                      />
+                    )}
 
-                      {/* Tool result: image_generated — show inline image */}
-                      {toolResult?.type === 'image_generated' && (
-                        <div className="mt-3 rounded-lg overflow-hidden border border-gray-700">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={toolResult.url}
-                            alt={toolResult.prompt}
-                            className="w-full object-contain max-h-48 bg-gray-900"
-                          />
-                          <div className="flex items-center justify-between px-2 py-1.5 bg-gray-900/50">
-                            <p className="text-xs text-gray-500 truncate">{toolResult.prompt}</p>
-                            <button
-                              onClick={() => prefillInput(`Gebruik de afbeelding "${toolResult.prompt}" en `)}
-                              className="ml-2 shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
-                              title="Gebruik deze afbeelding in je volgende bericht"
-                            >
-                              <MessageSquarePlus className="w-3 h-3" />
-                              Gebruik in chat
-                            </button>
-                          </div>
+                    {toolResult?.type === 'image_generated' && (
+                      <div className="mt-3 overflow-hidden rounded-md border border-white/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={toolResult.url} alt={toolResult.prompt} className="max-h-52 w-full bg-[#111111] object-contain" />
+                        <div className="flex items-center justify-between gap-2 bg-[#111111] px-2 py-1.5">
+                          <p className="truncate text-xs text-white/45">{toolResult.prompt}</p>
+                          <button
+                            onClick={() => prefillImageInChat(toolResult.prompt)}
+                            className="focus-ring flex shrink-0 items-center gap-1 rounded bg-white/8 px-2 py-1 text-xs text-white/70 transition hover:bg-white/12 hover:text-white"
+                          >
+                            <MessageSquarePlus size={12} />
+                            Gebruik
+                          </button>
                         </div>
-                      )}
-
-                      {/* Fallback: markdown code block parsing (no toolResult) */}
-                      {hasFallbackSuggestion && (
-                        <MiniPreview
-                          currentCode={currentCode}
-                          suggested={fallbackSuggested}
-                          onAccept={() => onApplyCodeUpdate(fallbackSuggested)}
-                        />
-                      )}
-                    </>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })
+              )
+            })}
+          </div>
         )}
+
         {isProcessing && (
-          <div className="flex justify-start">
-            <div className="bg-gray-900 rounded-lg px-4 py-3 border border-gray-800">
-              <Loader2 className="w-4 h-4 animate-spin text-[#E1014A]" />
+          <div className="mt-4 flex justify-start">
+            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-[#161616] px-4 py-3 text-sm text-white/60">
+              <Loader2 className="h-4 w-4 animate-spin text-[#F9CD00]" />
+              {processingHint}
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-900 space-y-2">
-        {/* Mode selector */}
-        <div className="flex gap-1">
-          {MODE_CONFIG.map(({ mode: m, label, description }) => (
+      <form onSubmit={handleSubmit} className="border-t border-white/10 bg-[#111111] p-3">
+        <div className="mb-2 flex flex-wrap gap-2">
+          {!hasCode ? (
             <button
-              key={m}
               type="button"
-              onClick={() => setMode(m)}
-              title={description}
-              className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
-                mode === m
-                  ? 'bg-[#E1014A] text-white'
-                  : 'bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-800'
-              }`}
+              onClick={() => sendAction('Maak eerste build', 'first_build')}
+              disabled={!readiness.readyForFirstBuild || isProcessing}
+              title={readiness.readyForFirstBuild ? 'Maak de eerste werkende versie' : readiness.reason}
+              className="focus-ring flex items-center gap-1.5 rounded-md bg-[#F9CD00] px-3 py-2 text-xs font-semibold text-black transition hover:bg-[#e8bd00] active:translate-y-px disabled:cursor-not-allowed disabled:border disabled:border-white/10 disabled:bg-[#161616] disabled:text-white/35"
             >
-              {label}
+              <Hammer size={13} />
+              Maak eerste build
             </button>
-          ))}
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => sendAction('Leg uit hoe dit project werkt en wat ik als volgende kan verbeteren.', 'inspect')}
+                disabled={isProcessing}
+                className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
+              >
+                <BookOpen size={13} />
+                Leg dit uit
+              </button>
+              <button
+                type="button"
+                onClick={() => sendAction('Kijk kritisch naar mijn project en stel de beste kleine verbetering voor.', 'inspect')}
+                disabled={isProcessing}
+                className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
+              >
+                <Wand2 size={13} />
+                Verbeter dit
+              </button>
+              <button
+                type="button"
+                onClick={() => prefillAction('Ik wil een grote wijziging. Behoud: ... Verander: ... Omdat: ...')}
+                disabled={isProcessing}
+                className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
+              >
+                <RefreshCw size={13} />
+                Maak grote wijziging
+              </button>
+            </>
+          )}
+          {!hasCode && phase !== 'empty' && !readiness.readyForFirstBuild && (
+            <span className="min-w-0 flex-1 self-center text-xs text-white/35">{readiness.reason}</span>
+          )}
         </div>
 
         <div className="flex gap-2">
           <input
-            type="text"
             ref={inputRef}
+            type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              mode === 'agent' ? 'Bouw iets of vraag grote aanpassingen...' :
-              mode === 'qa' ? 'Stel een vraag over je code...' :
-              'Beschrijf een kleine aanpassing...'
-            }
-            className="flex-1 bg-gray-900 text-gray-100 text-sm rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#E1014A] border border-gray-800"
+            onChange={(e) => onInputChange(e.target.value)}
+            placeholder={hasCode
+              ? 'Vraag om uitleg, een kleine verbetering of een bugfix...'
+              : 'Beschrijf wat je wilt maken. Begin rommelig; de AI helpt je het scherp te krijgen.'}
+            className="focus-ring min-w-0 flex-1 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-white/25"
             disabled={isProcessing}
           />
           <button
             type="submit"
             disabled={isProcessing || !input.trim()}
-            className="bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded px-4 py-2 transition-colors"
+            className="focus-ring rounded-md bg-[#DD084B] px-4 py-2 text-white transition hover:bg-[#B8063F] active:translate-y-px disabled:opacity-45"
+            title="Verstuur"
           >
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>
         </div>
       </form>

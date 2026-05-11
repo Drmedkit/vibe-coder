@@ -1,14 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Loader2, Image as ImageIcon, Sparkles, Copy, Check, MessageSquarePlus } from 'lucide-react'
-
-interface Asset {
-  id: string
-  prompt: string
-  url: string
-  timestamp: number
-}
+import { useEffect, useState } from 'react'
+import { Check, Copy, Image as ImageIcon, Loader2, MessageSquarePlus, Sparkles, X } from 'lucide-react'
+import { Asset } from '@/lib/types'
 
 interface AssetLibraryProps {
   isOpen: boolean
@@ -16,25 +10,35 @@ interface AssetLibraryProps {
   onUseInChat?: (prompt: string) => void
 }
 
+const ASSET_TYPES: { value: Asset['assetType']; label: string }[] = [
+  { value: 'item', label: 'Item' },
+  { value: 'character', label: 'Karakter' },
+  { value: 'background', label: 'Achtergrond' },
+  { value: 'icon', label: 'Icon' },
+]
+
 export function AssetLibrary({ isOpen, onClose, onUseInChat }: AssetLibraryProps) {
   const [prompt, setPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [assets, setAssets] = useState<Asset[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [assetType, setAssetType] = useState<'character' | 'background' | 'item' | 'icon'>('item')
+  const [assetType, setAssetType] = useState<Asset['assetType']>('item')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
+    setError('')
     fetch('/api/assets')
-      .then(r => r.json())
+      .then(response => response.json())
       .then(data => setAssets(data.assets || []))
-      .catch(() => {})
+      .catch(() => setError('Assets laden is mislukt.'))
   }, [isOpen])
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return
 
     setIsGenerating(true)
+    setError('')
 
     try {
       const response = await fetch('/api/generate-image', {
@@ -42,160 +46,130 @@ export function AssetLibrary({ isOpen, onClose, onUseInChat }: AssetLibraryProps
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: prompt.trim(),
-          assetType
-        })
+          assetType,
+        }),
       })
 
       const data = await response.json()
-
-      if (data.error) {
-        alert(data.error)
+      if (!response.ok) {
+        setError(data.error || 'Afbeelding genereren is mislukt.')
         return
       }
 
-      const newAsset: Asset = {
-        id: data.id || `asset-${Date.now()}`,
-        prompt: prompt.trim(),
+      setAssets(prev => [{
+        id: data.id,
+        prompt: data.prompt,
+        assetType,
         url: data.url,
-        timestamp: Date.now()
-      }
-
-      setAssets(prev => [newAsset, ...prev])
+        timestamp: data.timestamp,
+      }, ...prev])
       setPrompt('')
-    } catch (error) {
-      console.error('Failed to generate image:', error)
-      alert('Er ging iets mis bij het genereren van de afbeelding.')
+    } catch {
+      setError('Afbeelding genereren is mislukt.')
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleCopyUrl = (asset: Asset) => {
+  const handleCopyUrl = async (asset: Asset) => {
     const fullUrl = `${window.location.origin}${asset.url}`
-    navigator.clipboard.writeText(fullUrl)
+    await navigator.clipboard.writeText(fullUrl)
     setCopiedId(asset.id)
-    setTimeout(() => setCopiedId(null), 2000)
+    window.setTimeout(() => setCopiedId(null), 2000)
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-gray-800">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#161616] shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] p-4">
           <div className="flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-[#E1014A]" />
-            <h2 className="text-lg font-semibold text-white">Asset Bibliotheek</h2>
+            <ImageIcon className="h-5 w-5 text-[#F9CD00]" />
+            <h2 className="font-display text-2xl font-black leading-none text-white">ASSET BIBLIOTHEEK</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-gray-800 rounded-md transition-colors"
-          >
-            <X size={20} className="text-gray-400" />
+          <button onClick={onClose} className="focus-ring rounded-md p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white" title="Sluiten">
+            <X size={20} />
           </button>
         </div>
 
-        {/* Generator Section */}
-        <div className="p-4 border-b border-gray-800 bg-gray-900/50">
+        <div className="border-b border-white/10 bg-[#111111]/65 p-4">
           <div className="space-y-3">
             <div>
-              <label className="text-sm text-gray-400 mb-2 block">
-                Wat wil je maken?
-              </label>
-              <div className="flex gap-2 mb-3">
-                {(['item', 'character', 'background', 'icon'] as const).map((type) => (
+              <label className="mb-2 block text-sm font-medium text-white/65">Wat wil je maken?</label>
+              <div className="flex flex-wrap gap-2">
+                {ASSET_TYPES.map(type => (
                   <button
-                    key={type}
-                    onClick={() => setAssetType(type)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      assetType === type
-                        ? 'bg-[#E1014A] text-white'
-                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                    key={type.value}
+                    onClick={() => setAssetType(type.value)}
+                    className={`focus-ring rounded-md px-3 py-1.5 text-xs font-semibold transition active:translate-y-px ${
+                      assetType === type.value
+                        ? 'bg-[#F9CD00] text-black'
+                        : 'border border-white/10 bg-[#161616] text-white/55 hover:text-white'
                     }`}
                   >
-                    {type === 'item' && 'Item'}
-                    {type === 'character' && 'Karakter'}
-                    {type === 'background' && 'Achtergrond'}
-                    {type === 'icon' && 'Icon'}
+                    {type.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-                placeholder="Beschrijf je asset... (bijv. 'rode appel', 'blauwe ruimteraket')"
-                className="flex-1 bg-gray-800 text-gray-100 text-sm rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Beschrijf je asset, bijvoorbeeld: blauwe ruimteraket"
+                className="focus-ring min-w-0 flex-1 rounded-md border border-white/10 bg-black/35 px-4 py-2 text-sm text-white placeholder:text-white/25"
                 disabled={isGenerating}
               />
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !prompt.trim()}
-                className="bg-[#E1014A] hover:bg-[#c1013d] disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-6 py-2 transition-colors flex items-center gap-2 font-medium"
+                className="focus-ring flex items-center justify-center gap-2 rounded-md bg-[#DD084B] px-5 py-2 font-semibold text-white transition hover:bg-[#B8063F] active:translate-y-px disabled:opacity-45"
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Maken...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Genereer
-                  </>
-                )}
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isGenerating ? 'Maken...' : 'Genereer'}
               </button>
             </div>
 
-            <p className="text-xs text-gray-500">
-              Tip: Beschrijf wat je wilt zien, de AI maakt er een game asset van!
-            </p>
+            {error && (
+              <div className="rounded-md border border-[#DD084B]/40 bg-[#DD084B]/10 px-3 py-2 text-sm text-white">
+                {error}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Assets Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {assets.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
-              <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-              <p>Nog geen assets gegenereerd.</p>
-              <p className="text-sm mt-1">Beschrijf wat je wilt maken en klik op Genereer!</p>
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-md border border-dashed border-white/12 bg-black/18 text-center">
+              <ImageIcon className="mb-3 h-10 w-10 text-white/25" />
+              <p className="text-white/65">Nog geen assets</p>
+              <p className="mt-1 text-sm text-white/35">Maak een item, karakter, achtergrond of icon.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {assets.map((asset) => (
-                <div
-                  key={asset.id}
-                  className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-[#E1014A] transition-colors group"
-                >
-                  <div className="aspect-square bg-gray-900 relative">
-                    <img
-                      src={asset.url}
-                      alt={asset.prompt}
-                      className="w-full h-full object-contain"
-                    />
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {assets.map(asset => (
+                <div key={asset.id} className="overflow-hidden rounded-md border border-white/10 bg-[#111111]">
+                  <div className="relative aspect-square bg-black/35">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={asset.url} alt={asset.prompt} className="h-full w-full object-contain" />
                   </div>
-                  <div className="p-2 space-y-1.5">
-                    <p className="text-xs text-gray-400 truncate">{asset.prompt}</p>
+                  <div className="space-y-2 p-2">
+                    <p className="truncate text-xs text-white/45">{asset.prompt}</p>
                     <button
                       onClick={() => handleCopyUrl(asset)}
-                      className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs py-1.5 px-2 rounded flex items-center justify-center gap-1 transition-colors"
+                      className="focus-ring flex w-full items-center justify-center gap-1 rounded bg-white/8 px-2 py-1.5 text-xs text-white/70 transition hover:bg-white/12 hover:text-white"
                     >
-                      {copiedId === asset.id ? (
-                        <><Check size={12} />Gekopieerd!</>
-                      ) : (
-                        <><Copy size={12} />Kopieer URL</>
-                      )}
+                      {copiedId === asset.id ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedId === asset.id ? 'Gekopieerd' : 'Kopieer URL'}
                     </button>
                     {onUseInChat && (
                       <button
                         onClick={() => { onUseInChat(asset.prompt); onClose() }}
-                        className="w-full bg-[#E1014A]/10 hover:bg-[#E1014A]/20 text-[#E1014A] border border-[#E1014A]/30 text-xs py-1.5 px-2 rounded flex items-center justify-center gap-1 transition-colors"
+                        className="focus-ring flex w-full items-center justify-center gap-1 rounded border border-[#F9CD00]/25 bg-[#F9CD00]/10 px-2 py-1.5 text-xs text-[#F9CD00] transition hover:bg-[#F9CD00]/16"
                       >
                         <MessageSquarePlus size={12} />
                         Gebruik in chat
@@ -206,13 +180,6 @@ export function AssetLibrary({ isOpen, onClose, onUseInChat }: AssetLibraryProps
               ))}
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-800 bg-gray-900/50">
-          <p className="text-xs text-gray-500 text-center">
-            Gebruik de gekopieerde URL in je HTML: <code className="bg-gray-800 px-1 rounded">&lt;img src=&quot;URL&quot;&gt;</code>
-          </p>
         </div>
       </div>
     </div>

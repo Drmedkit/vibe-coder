@@ -3,11 +3,11 @@ import { SESSION_COOKIE, createSessionCookieOptions, destroyCurrentSession } fro
 
 export async function POST() {
   await destroyCurrentSession()
+
   const response = NextResponse.json({ ok: true })
   response.cookies.set(SESSION_COOKIE, '', {
     ...createSessionCookieOptions(),
     maxAge: 0,
   })
-  response.cookies.set('vibe_access', '', { httpOnly: true, path: '/', maxAge: 0 })
   return response
 }

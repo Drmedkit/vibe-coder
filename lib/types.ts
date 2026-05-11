@@ -1,4 +1,37 @@
-export type ChatMode = 'agent' | 'qa' | 'edit'
+export type ChatMode = 'plan' | 'build' | 'explain'
+
+export type ProjectPhase = 'empty' | 'shaping' | 'ready_for_first_build' | 'built' | 'polishing'
+
+export type AIIntent = 'director' | 'first_build' | 'inspect' | 'adjust' | 'major_rebuild'
+
+export type ChatAction = 'first_build' | 'inspect' | 'adjust' | 'major_rebuild'
+
+export type CodeUpdateIntent = 'first_build' | 'adjust' | 'major_rebuild'
+
+export interface ProjectBrief {
+  rawIdea: string
+  goal?: string
+  coreExperience?: string
+  mustHaves: string[]
+  styleNotes: string[]
+  constraints: string[]
+  confirmedChoices: string[]
+  unresolvedQuestions: string[]
+  qualityBar?: string
+}
+
+export interface BriefReadiness {
+  score: number
+  readyForFirstBuild: boolean
+  missing: string[]
+  reason: string
+}
+
+export interface ChatWorkspaceContext {
+  phase: ProjectPhase
+  brief: ProjectBrief
+  majorBuildCount: number
+}
 
 export enum Language {
   HTML = 'html',
@@ -20,7 +53,7 @@ export interface EditPatch {
 }
 
 export type ToolResult =
-  | { type: 'code_update'; html?: string; css?: string; javascript?: string }
+  | { type: 'code_update'; intent?: CodeUpdateIntent; html?: string; css?: string; javascript?: string }
   | { type: 'edit_patches'; patches: EditPatch[] }
   | { type: 'image_generated'; url: string; prompt: string }
 
@@ -38,12 +71,16 @@ export interface ProjectData {
   description?: string
   code: CodeState
   isPublished: boolean
+  phase?: ProjectPhase
+  brief?: ProjectBrief
+  firstBuildAcceptedAt?: number
+  majorBuildCount?: number
 }
 
 export interface Asset {
   id: string
-  name: string
-  type: 'IMAGE' | 'ICON' | 'BACKGROUND'
+  prompt: string
+  assetType: 'character' | 'background' | 'item' | 'icon'
   url: string
-  prompt?: string
+  timestamp: number
 }

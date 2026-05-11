@@ -1,87 +1,57 @@
-# Vibe Coder 🎨
+# Vibe Coder
 
-Een web-based code editor voor studenten om HTML, CSS en JavaScript te leren met AI hulp.
+Een Nederlandse classroom tool voor studenten die webpagina's en kleine games willen bouwen met AI-begeleiding.
 
-## Features
+## Wat studenten kunnen
 
-- ✅ **Live Code Editor** - HTML, CSS, JavaScript tabs
-- ✅ **Real-time Preview** - Zie je code direct in actie
-- ✅ **AI Assistent** - Groq-powered chat voor code hulp (Nederlands)
-- ✅ **Image Generator** - Maak game assets met AI (FAL.ai)
-- ✅ **Download/Upload** - Projecten opslaan als JSON
-- 🚧 **User Accounts** - Opslaan in database (komt binnenkort)
-- 🚧 **Classroom Mode** - Voor docenten (komt binnenkort)
-- 🚧 **Community Gallery** - Projecten delen en forken (komt binnenkort)
+- Account maken met gebruikersnaam en wachtwoord, zonder e-mail.
+- Registreren met de vaste klascode `h20`.
+- Bouwen met HTML, CSS en JavaScript in een browser-editor.
+- Live preview bekijken met JavaScript foutmeldingen.
+- AI gebruiken in drie modi: Plan, Build en Explain. Plan is een gesprek met vragen en opties, niet een automatisch eindplan.
+- AI-codevoorstellen eerst bekijken en daarna zelf toepassen.
+- Projecten handmatig opslaan, openen, kopieren en verwijderen.
+- Projecten importeren/exporteren als JSON.
+- Game assets genereren met AI en gebruiken in de chat of HTML.
 
-## Lokaal Draaien
+## Tech stack
 
-1. **Clone het project**
-   ```bash
-   git clone <repository-url>
-   cd vibe-coder
-   ```
+- Next.js 16, React 19, TypeScript
+- Tailwind CSS 4
+- Prisma 7 met PostgreSQL
+- OpenRouter voor chatmodellen
+- Google Imagen via Google AI Studio voor assets
+- CodeMirror 6 voor de editor
 
-2. **Installeer dependencies**
-   ```bash
-   npm install
-   ```
+## Lokaal draaien
 
-3. **Setup environment variables**
-   ```bash
-   cp .env.example .env
-   # Vul je API keys in in .env
-   ```
+```bash
+npm install
+cp .env.example .env
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
 
-4. **Setup database**
-   ```bash
-   npx prisma generate
-   npx prisma migrate dev
-   ```
+Open daarna `http://localhost:3000`.
 
-5. **Start development server**
-   ```bash
-   npm run dev
-   ```
+## Environment variables
 
-6. **Open in browser**
-   ```
-   http://localhost:3000
-   ```
+```bash
+DATABASE_URL="postgresql://user:pass@host/db"
+POSTGRES_PRISMA_URL="postgresql://user:pass@host/db"
+OPENROUTER_API_KEY="sk-or-v1-..."
+GOOGLE_AI_API_KEY="AIza..."
+CLASS_CODE="h20"
+```
 
-## API Keys Krijgen
+`CLASS_CODE` staat in de app bewust vast op `h20`; de variable blijft in het voorbeeld staan voor documentatie.
 
-- **Groq** (AI Chat): [console.groq.com](https://console.groq.com/keys)
-- **FAL.ai** (Images): [fal.ai/dashboard](https://fal.ai/dashboard/keys)
+## Checks
 
-## Deployment naar Vercel
-
-Zie [DEPLOYMENT.md](./DEPLOYMENT.md) voor volledige instructies.
-
-Snel overzicht:
-1. Push naar GitHub
-2. Importeer in Vercel
-3. Voeg Neon Postgres database toe in Vercel Storage
-4. Voeg environment variables toe in Vercel Settings
-5. Deploy!
-
-## Tech Stack
-
-- **Framework**: Next.js 14 + TypeScript
-- **Styling**: Tailwind CSS
-- **Database**: Prisma + PostgreSQL (Neon)
-- **AI**: Groq (Llama 3.3 70B)
-- **Images**: FAL.ai (Flux Schnell)
-- **Icons**: Lucide React
-
-## Kosten (30 studenten)
-
-- Vercel: **Gratis** (Hobby plan)
-- Neon DB: **Gratis** (Free tier)
-- Groq API: **Gratis** (14,400 requests/dag)
-- FAL.ai: **~€0.60/maand** (na 100 gratis images)
-
-**Totaal: ~€0.60/maand** 🎉
-
-## Licentie
-
-MIT
+```bash
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
+```

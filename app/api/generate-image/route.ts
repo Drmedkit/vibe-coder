@@ -1,33 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateGameAsset } from '@/lib/imageGeneration'
 import { prisma } from '@/lib/prisma'
+import { isUnauthorized, requireUser } from '@/lib/auth'
+
+const VALID_ASSET_TYPES = new Set(['character', 'background', 'item', 'icon'])
 
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireUser()
     const { prompt, assetType = 'item' } = await request.json() as {
       prompt: string
       assetType?: 'character' | 'background' | 'item' | 'icon'
     }
-    if (!prompt) return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
+    const cleanPrompt = prompt?.trim()
+    if (!cleanPrompt) return NextResponse.json({ error: 'Prompt is verplicht' }, { status: 400 })
+    if (!VALID_ASSET_TYPES.has(assetType)) {
+      return NextResponse.json({ error: 'Onbekend asset type' }, { status: 400 })
+    }
 
-    // Generate image (returns data URL)
-    const dataUrl = await generateGameAsset(prompt, assetType)
+    const dataUrl = await generateGameAsset(cleanPrompt, assetType)
     const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
 
-    // Save to database
     const asset = await prisma.asset.create({
-      data: { prompt, assetType, data: base64, mimeType: 'image/png' },
+      data: { ownerId: user.id, prompt: cleanPrompt, assetType, data: base64, mimeType: 'image/png' },
     })
+
+    const count = await prisma.asset.count({ where: { ownerId: user.id } })
+    if (count > 100) {
+      const oldest = await prisma.asset.findMany({
+        where: { ownerId: user.id },
+        orderBy: { createdAt: 'asc' },
+        take: count - 100,
+        select: { id: true },
+      })
+      await prisma.asset.deleteMany({ where: { id: { in: oldest.map(a => a.id) }, ownerId: user.id } })
+    }
 
     return NextResponse.json({
       id: asset.id,
-      prompt,
+      prompt: cleanPrompt,
       url: `/api/images/${asset.id}`,
       timestamp: Date.now(),
     })
   } catch (error) {
+    if (isUnauthorized(error)) {
+      return NextResponse.json({ error: 'Niet ingelogd' }, { status: 401 })
+    }
     console.error('Image generation error:', error)
     return NextResponse.json({ error: 'Afbeelding genereren mislukt' }, { status: 500 })
   }

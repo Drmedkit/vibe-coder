@@ -1,55 +1,120 @@
 @import "tailwindcss";
 
 :root {
-  /* H20 Brand Colors */
-  --play-red: #E1014A;
-  --pause-blue: #60C2D2;
-  --live-yellow: #FEC603;
-  --quit-blue: #364B9B;
-
-  /* Dark theme */
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card-bg: #1a1a1a;
-  --border: #2a2a2a;
+  --h20-red: #DD084B;
+  --h20-red-dark: #B8063F;
+  --h20-education: #F9CD00;
+  --h20-esports: #3EBAC8;
+  --h20-estate: #1960AE;
+  --h20-bg: #0d0d0d;
+  --h20-bg-soft: #111111;
+  --h20-panel: #161616;
+  --h20-panel-strong: #1d1d1d;
+  --h20-border: rgba(255, 255, 255, 0.08);
+  --h20-muted: rgba(255, 255, 255, 0.55);
+  --h20-text: #ffffff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--h20-bg);
+  --color-foreground: var(--h20-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-barlow-condensed);
+  --color-play: var(--h20-red);
+  --color-live: var(--h20-education);
+  --color-pause: var(--h20-esports);
+  --color-quit: var(--h20-estate);
+}
 
-  /* H20 Colors */
-  --color-play: var(--play-red);
-  --color-pause: var(--pause-blue);
-  --color-live: var(--live-yellow);
-  --color-quit: var(--quit-blue);
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(221, 8, 75, 0.18), transparent 28rem),
+    radial-gradient(circle at 88% 8%, rgba(62, 186, 200, 0.11), transparent 24rem),
+    var(--h20-bg);
+  color: var(--h20-text);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* H20 Pattern Effect - subtle squares overlay */
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: rgba(249, 205, 0, 0.32);
+  color: #fff;
+}
+
+.font-display {
+  font-family: var(--font-barlow-condensed), var(--font-geist-sans), Arial, sans-serif;
+}
+
 .h20-pattern {
   position: relative;
   overflow: hidden;
 }
 
 .h20-pattern::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.02) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%);
-  background-size: 40px 40px;
-  background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
   pointer-events: none;
-  opacity: 0.3;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    url("/h20-pattern.png");
+  background-size: 64px 64px, 64px 64px, cover;
+  background-position: center;
+  opacity: 0.18;
+  mix-blend-mode: screen;
+}
+
+.h20-square-texture {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px rgba(249, 205, 0, 0.42);
+}
+
+.cm-editor {
+  height: 100%;
+  background: #111111;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+}
+
+.cm-scroller {
+  font-family: var(--font-geist-mono), monospace !important;
+  line-height: 1.55;
+}
+
+.cm-focused {
+  outline: none !important;
 }
