@@ -5,7 +5,7 @@ import { isUnauthorized, requireUser } from '@/lib/auth'
 import { inferIntent, normalizeBrief, phaseFromBriefAndCode } from '@/lib/projectFlow'
 import { checkAIRateLimit, recordAIUsage } from '@/lib/aiLimits'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 const PROJECT_PHASES = new Set<ProjectPhase>(['empty', 'shaping', 'ready_for_first_build', 'built', 'polishing'])
 const CHAT_ACTIONS = new Set<ChatAction>(['first_build', 'inspect', 'adjust', 'major_rebuild'])

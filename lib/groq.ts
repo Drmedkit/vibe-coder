@@ -12,10 +12,11 @@ import { getBriefReadiness, inferIntent, mergeBriefPatch, normalizeBrief } from 
 
 export { extractTag, extractEditPatches } from './parseAI'
 
+const useXAI = Boolean(process.env.XAI_API_KEY)
+
 const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-  timeout: 22000,
+  baseURL: useXAI ? 'https://api.x.ai/v1' : 'https://openrouter.ai/api/v1',
+  apiKey: useXAI ? process.env.XAI_API_KEY : process.env.OPENROUTER_API_KEY,
 })
 
 // Permanently skip paid models after a 402 (out of credits) until server restart.
@@ -50,16 +51,17 @@ export interface AIResponse {
   usingFallback?: boolean
 }
 
-const FREE_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free'
-const FAST_MODEL = 'google/gemini-2.5-flash-lite'
-const BUILD_MODEL = 'google/gemini-2.5-flash'
+const XAI_MODEL = 'grok-4.3'
+const OPENROUTER_FREE_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free'
+const OPENROUTER_FAST_MODEL = 'google/gemini-2.5-flash-lite'
+const OPENROUTER_BUILD_MODEL = 'google/gemini-2.5-flash'
 
-const MODEL_CHAIN: Record<AIIntent, readonly string[]> = {
-  director: [FAST_MODEL, FREE_MODEL],
-  inspect: [FAST_MODEL, FREE_MODEL],
-  adjust: [FAST_MODEL, BUILD_MODEL],
-  first_build: [BUILD_MODEL, FAST_MODEL],
-  major_rebuild: [BUILD_MODEL, FAST_MODEL],
+const OPENROUTER_MODEL_CHAIN: Record<AIIntent, readonly string[]> = {
+  director: [OPENROUTER_FAST_MODEL, OPENROUTER_FREE_MODEL],
+  inspect: [OPENROUTER_FAST_MODEL, OPENROUTER_FREE_MODEL],
+  adjust: [OPENROUTER_FAST_MODEL, OPENROUTER_BUILD_MODEL],
+  first_build: [OPENROUTER_BUILD_MODEL, OPENROUTER_FAST_MODEL],
+  major_rebuild: [OPENROUTER_BUILD_MODEL, OPENROUTER_FAST_MODEL],
 }
 
 const SYSTEM_PROMPTS: Record<AIIntent, string> = {
@@ -529,10 +531,11 @@ async function generateWithModelChain(
   intent: AIIntent,
   messages: OpenAI.Chat.ChatCompletionMessageParam[]
 ): Promise<{ result: ParsedAIResponse; usingFallback: boolean }> {
+  const configuredChain = useXAI ? [XAI_MODEL] : OPENROUTER_MODEL_CHAIN[intent]
   const candidates = paidModelAvailable
-    ? MODEL_CHAIN[intent]
-    : MODEL_CHAIN[intent].filter(model => model === FREE_MODEL)
-  const chain = candidates.length > 0 ? candidates : [FREE_MODEL]
+    ? configuredChain
+    : configuredChain.filter(model => model === OPENROUTER_FREE_MODEL)
+  const chain = candidates.length > 0 ? candidates : [OPENROUTER_FREE_MODEL]
   let lastError: unknown
 
   for (const model of chain) {
@@ -540,12 +543,12 @@ async function generateWithModelChain(
       const validated = await callModelWithValidatedResponse(model, messages, MAX_TOKENS[intent], intent)
       return {
         result: validated.result,
-        usingFallback: model !== MODEL_CHAIN[intent][0],
+        usingFallback: model !== configuredChain[0],
       }
     } catch (error: unknown) {
       lastError = error
       const status = (error as { status?: number })?.status
-      if (status === 402) paidModelAvailable = false
+      if (!useXAI && status === 402) paidModelAvailable = false
       if (status === 402 || status === 429 || status === 404) {
         console.error(`AI model candidate failed (${model}):`, error)
         continue

@@ -329,14 +329,10 @@ function EditorContent() {
       : brief
     const requestPhase = phaseFromBriefAndCode(requestBrief, code, phase)
 
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 60000)
-
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
         body: JSON.stringify({
           message: text,
           code,
@@ -418,19 +414,15 @@ function EditorContent() {
         }
       })
     } catch (error) {
-      const isTimeout = error instanceof Error && error.name === 'AbortError'
       addMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: isTimeout
-          ? 'De AI deed er te lang over. Je werk is niet kapot. Probeer een kleinere vraag of maak eerst een kleine verbetering.'
-          : error instanceof Error && error.message
+        content: error instanceof Error && error.message
             ? `De AI kon niet antwoorden: ${error.message}`
             : 'De AI is nu niet bereikbaar. Probeer het zo opnieuw.',
         timestamp: Date.now(),
       })
     } finally {
-      window.clearTimeout(timeout)
       setIsProcessing(false)
     }
   }
