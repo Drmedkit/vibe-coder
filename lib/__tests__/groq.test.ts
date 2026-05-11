@@ -192,6 +192,19 @@ describe('project flow helpers', () => {
     const readiness = getBriefReadiness(readyBrief)
 
     expect(readiness.readyForFirstBuild).toBe(true)
-    expect(readiness.reason).toBe('We weten genoeg om een goede eerste versie te maken.')
+    expect(readiness.reason).toBe('We weten genoeg voor een kleine eerste build.')
+  })
+
+  it('returns true for a simple game idea with one concrete action', () => {
+    const readiness = getBriefReadiness({
+      rawIdea: 'Ik wil een paarden game waar je paard over blokken springt in een hele vrolijke stijl.',
+      mustHaves: ['paard springt over blokken'],
+      styleNotes: ['hele vrolijke stijl'],
+      constraints: [],
+      confirmedChoices: [],
+      unresolvedQuestions: [],
+    })
+
+    expect(readiness.readyForFirstBuild).toBe(true)
   })
 })

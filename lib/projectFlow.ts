@@ -74,20 +74,15 @@ export function isCodeEmpty(code: CodeState): boolean {
 export function getBriefReadiness(briefInput: ProjectBrief): BriefReadiness {
   const brief = normalizeBrief(briefInput)
   const missing: string[] = []
+  const hasRawIdea = brief.rawIdea.trim().length >= 20
+  const hasConcreteThing = Boolean(brief.coreExperience) || brief.mustHaves.length >= 1 || brief.confirmedChoices.length >= 1
+  const hasDirection = brief.styleNotes.length >= 1 || brief.mustHaves.length >= 1 || Boolean(brief.qualityBar)
 
-  if (brief.rawIdea.trim().length < 20) missing.push('een eigen idee in je eigen woorden')
-  if (!brief.coreExperience) missing.push('wat de gebruiker of speler vooral gaat doen')
-  if (brief.mustHaves.length < 2) missing.push('minimaal twee dingen die erin moeten')
-  if (brief.styleNotes.length < 1) missing.push('een stijl of gevoel')
-  if (brief.confirmedChoices.length < 1) missing.push('minimaal een bevestigde keuze')
+  if (!hasRawIdea) missing.push('een eigen idee in je eigen woorden')
+  if (!hasConcreteThing) missing.push('een concrete actie of onderdeel')
+  if (!hasDirection) missing.push('een richting voor stijl of werking')
 
-  const checks = [
-    brief.rawIdea.trim().length >= 20,
-    Boolean(brief.coreExperience),
-    brief.mustHaves.length >= 2,
-    brief.styleNotes.length >= 1,
-    brief.confirmedChoices.length >= 1,
-  ]
+  const checks = [hasRawIdea, hasConcreteThing, hasDirection]
   const score = Math.round((checks.filter(Boolean).length / checks.length) * 100)
 
   return {
@@ -95,7 +90,7 @@ export function getBriefReadiness(briefInput: ProjectBrief): BriefReadiness {
     readyForFirstBuild: missing.length === 0,
     missing,
     reason: missing.length === 0
-      ? 'We weten genoeg om een goede eerste versie te maken.'
+      ? 'We weten genoeg voor een kleine eerste build.'
       : `Nog nodig: ${missing.join(', ')}.`,
   }
 }

@@ -66,13 +66,13 @@ const OPENROUTER_MODEL_CHAIN: Record<AIIntent, readonly string[]> = {
 
 const SYSTEM_PROMPTS: Record<AIIntent, string> = {
   director: `Je bent creative director voor jongeren die digitale projecten bouwen.
-Je taak is niet om meteen te bouwen, maar om eigenaarschap uit de student te halen.
+Je taak is om snel genoeg richting te krijgen voor een kleine eerste build. Maak het proces licht.
 
 Antwoord ALLEEN met geldig JSON:
 {
   "text": "Korte Nederlandse reactie. Benoem wat scherp is en wat nog generiek voelt.",
-  "questions": ["1 tot 3 gerichte vragen"],
-  "suggestions": ["Concrete richtingen waar de student op kan reageren"],
+  "questions": ["maximaal 1 gerichte vraag, leeg als er genoeg is voor een kleine build"],
+  "suggestions": ["maximaal 2 concrete richtingen waar de student op kan reageren"],
   "briefPatch": {
     "rawIdea": "alleen de eigen woorden of bevestigde richting van de student",
     "goal": "optioneel",
@@ -88,18 +88,18 @@ Antwoord ALLEEN met geldig JSON:
 
 Regels:
 - Geef geen code, geen codeUpdate, geen editPatches en geen image.
-- Geef geen volledig plan in een keer.
-- Vraag door op vage ideeen.
-- Benoem wanneer iets generiek voelt, zonder af te kraken.
-- Geef concrete suggesties, maar laat de student kiezen.
+- Stel niet standaard meerdere vragen.
+- Als het idee een duidelijke actie of object heeft, is dat genoeg voor een kleine eerste build.
+- Gebruik suggesties om ontbrekende details zelf licht in te vullen, niet om de student te ondervragen.
+- Benoem kort wanneer iets generiek voelt, zonder af te kraken.
 - Vat alleen bevestigde keuzes samen.
-- Push richting een eerste build die spannend genoeg is om op door te werken.
-- Als de brief klaar is, zeg: "We weten genoeg om een goede eerste versie te maken."
+- Push snel richting een eerste build die klein genoeg is om op door te werken.
+- Als de brief klaar is, zeg: "We weten genoeg voor een kleine eerste build."
 - Gebruik duidelijke taal voor 10-16 jaar, maar niet kinderachtig.
 - Geen markdown, geen tekst buiten JSON.`,
 
   first_build: `Je bouwt nu de eerste werkende versie voor een student.
-Doel: 70-80%, niet alles. Maak iets dat direct speelbaar of bruikbaar voelt.
+Doel: 50-60%, klein maar werkend. Maak iets dat direct speelbaar of bruikbaar voelt.
 Gebruik de projectbrief als bron van waarheid.
 
 Antwoord ALLEEN met geldig JSON:
@@ -120,7 +120,8 @@ Regels:
 - codeUpdate is verplicht en bevat altijd html, css en javascript.
 - Gebruik geen editPatches voor de eerste build.
 - Voeg geen features toe die niet uit de brief of duidelijke intentie komen.
-- Kies liever 3 goed werkende dingen dan 8 halve dingen.
+- Kies liever 1 duidelijke kernactie en 1 simpele feedback-loop dan een groot project.
+- Houd de code compact en begrijpelijk voor beginners.
 - Maak UI en interactie af genoeg om meteen te testen.
 - HTML is alleen body-inhoud, geen html/head/body tags.
 - Gebruik image alleen als een asset echt nodig is.
@@ -193,11 +194,11 @@ Regels:
 }
 
 const MAX_TOKENS: Record<AIIntent, number> = {
-  director: 1200,
-  first_build: 6000,
+  director: 900,
+  first_build: 3800,
   inspect: 1800,
-  adjust: 2800,
-  major_rebuild: 6500,
+  adjust: 2200,
+  major_rebuild: 4200,
 }
 
 type AIJson = {
@@ -348,8 +349,8 @@ export function parseAndValidateAIResponse(raw: string, intent: AIIntent): {
   const text = parsed.text?.trim()
   if (!text) errors.push('text is verplicht en moet een niet-lege string zijn.')
 
-  const questions = normalizeStringArray(parsed.questions, 3)
-  const suggestions = normalizeStringArray(parsed.suggestions, 4)
+  const questions = normalizeStringArray(parsed.questions, intent === 'director' ? 1 : 3)
+  const suggestions = normalizeStringArray(parsed.suggestions, intent === 'director' ? 2 : 4)
   const included = normalizeStringArray(parsed.included, 6)
   const notIncludedYet = normalizeStringArray(parsed.notIncludedYet, 6)
   const nextPolishSuggestions = normalizeStringArray(parsed.nextPolishSuggestions, 6)
