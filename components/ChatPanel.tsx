@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { BookOpen, Check, Hammer, Loader2, MessageSquarePlus, RefreshCw, Send, Wand2 } from 'lucide-react'
-import { BriefReadiness, ChatAction, ChatMessage, CodeState, CodeUpdateIntent, EditPatch, ProjectPhase, ToolResult } from '@/lib/types'
+import { BookOpen, Check, Loader2, MessageSquarePlus, RefreshCw, Send, Wand2 } from 'lucide-react'
+import { ChatAction, ChatMessage, CodeState, CodeUpdateIntent, EditPatch, ToolResult } from '@/lib/types'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -15,8 +15,6 @@ interface ChatPanelProps {
   input: string
   onInputChange: (value: string) => void
   usingFallbackModel?: boolean
-  phase: ProjectPhase
-  readiness: BriefReadiness
   hasCode: boolean
 }
 
@@ -177,8 +175,6 @@ export function ChatPanel({
   input,
   onInputChange,
   usingFallbackModel,
-  phase,
-  readiness,
   hasCode,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -251,10 +247,10 @@ export function ChatPanel({
           <div className="mt-6 rounded-md border border-white/10 bg-[#161616] p-4">
             <p className="font-display text-2xl font-black leading-none text-white">BEGIN MET JOUW IDEE</p>
             <p className="mt-3 text-sm leading-relaxed text-white/55">
-              Beschrijf rommelig wat je wilt maken. De AI stelt vragen, scherpt keuzes aan en bouwt pas wanneer er genoeg richting is.
+              Beschrijf wat je wilt maken. De AI maakt een kleine eerste versie; daarna verbeter je steeds in kleine stappen.
             </p>
             <div className="mt-4 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/40">
-              De eerste build wordt beter als jij keuzes maakt over wat iemand doet, wat erin moet en hoe het moet voelen.
+              Begin simpel: wat is het, wat doet de speler of bezoeker, en welke sfeer moet het hebben?
             </div>
           </div>
         ) : (
@@ -340,19 +336,8 @@ export function ChatPanel({
       </div>
 
       <form onSubmit={handleSubmit} className="border-t border-white/10 bg-[#111111] p-3">
-        <div className="mb-2 flex flex-wrap gap-2">
-          {!hasCode ? (
-            <button
-              type="button"
-              onClick={() => sendAction('Maak eerste build', 'first_build')}
-              disabled={!readiness.readyForFirstBuild || isProcessing}
-              title={readiness.readyForFirstBuild ? 'Maak de eerste werkende versie' : readiness.reason}
-              className="focus-ring flex items-center gap-1.5 rounded-md bg-[#F9CD00] px-3 py-2 text-xs font-semibold text-black transition hover:bg-[#e8bd00] active:translate-y-px disabled:cursor-not-allowed disabled:border disabled:border-white/10 disabled:bg-[#161616] disabled:text-white/35"
-            >
-              <Hammer size={13} />
-              Maak eerste build
-            </button>
-          ) : (
+        {hasCode && (
+          <div className="mb-2 flex flex-wrap gap-2">
             <>
               <button
                 type="button"
@@ -382,11 +367,8 @@ export function ChatPanel({
                 Maak grote wijziging
               </button>
             </>
-          )}
-          {!hasCode && phase !== 'empty' && !readiness.readyForFirstBuild && (
-            <span className="min-w-0 flex-1 self-center text-xs text-white/35">{readiness.reason}</span>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <input
@@ -396,7 +378,7 @@ export function ChatPanel({
             onChange={(e) => onInputChange(e.target.value)}
             placeholder={hasCode
               ? 'Vraag om uitleg, een kleine verbetering of een bugfix...'
-              : 'Beschrijf wat je wilt maken. Begin rommelig; de AI helpt je het scherp te krijgen.'}
+              : 'Beschrijf wat je wilt maken. De AI maakt een kleine eerste versie.'}
             className="focus-ring min-w-0 flex-1 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-white/25"
             disabled={isProcessing}
           />

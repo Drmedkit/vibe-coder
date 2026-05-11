@@ -99,7 +99,7 @@ Regels:
 - Geen markdown, geen tekst buiten JSON.`,
 
   first_build: `Je bouwt nu de eerste werkende versie voor een student.
-Doel: 50-60%, klein maar werkend. Maak iets dat direct speelbaar of bruikbaar voelt.
+Doel: klein maar werkend. Maak een compacte eerste versie die direct speelbaar of bruikbaar voelt.
 Gebruik de projectbrief als bron van waarheid.
 
 Antwoord ALLEEN met geldig JSON:
@@ -119,8 +119,9 @@ Antwoord ALLEEN met geldig JSON:
 Regels:
 - codeUpdate is verplicht en bevat altijd html, css en javascript.
 - Gebruik geen editPatches voor de eerste build.
-- Voeg geen features toe die niet uit de brief of duidelijke intentie komen.
-- Kies liever 1 duidelijke kernactie en 1 simpele feedback-loop dan een groot project.
+- Vul ontbrekende details zelf simpel in wanneer de student een duidelijke vibe of kernactie geeft.
+- Bouw maximaal 1 duidelijke kernactie en 1 simpele feedback-loop.
+- Geen menu's, levels, shop, complexe assets of extra schermen tenzij de student dat expliciet vraagt.
 - Houd de code compact en begrijpelijk voor beginners.
 - Maak UI en interactie af genoeg om meteen te testen.
 - HTML is alleen body-inhoud, geen html/head/body tags.
@@ -195,10 +196,10 @@ Regels:
 
 const MAX_TOKENS: Record<AIIntent, number> = {
   director: 900,
-  first_build: 3800,
+  first_build: 3000,
   inspect: 1800,
   adjust: 2200,
-  major_rebuild: 4200,
+  major_rebuild: 3400,
 }
 
 type AIJson = {

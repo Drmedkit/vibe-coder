@@ -134,6 +134,23 @@ function looksLikeMajorRebuild(message: string): boolean {
   ].some(marker => text.includes(marker))
 }
 
+function hasEnoughIdeaForSmallBuild(message: string): boolean {
+  const text = message.trim().toLowerCase()
+  if (text.length < 20) return false
+  return [
+    'ik wil',
+    'maak',
+    'bouw',
+    'game',
+    'website',
+    'app',
+    'quiz',
+    'portfolio',
+    'platform',
+    'spel',
+  ].some(marker => text.includes(marker))
+}
+
 export function inferIntent(input: {
   message: string
   code: CodeState
@@ -147,6 +164,7 @@ export function inferIntent(input: {
   if (action === 'inspect') return 'inspect'
   if (action === 'adjust') return 'adjust'
 
+  if (isCodeEmpty(code) && hasEnoughIdeaForSmallBuild(message)) return 'first_build'
   if (isCodeEmpty(code) && workspace.phase !== 'ready_for_first_build') return 'director'
   if (workspace.phase === 'ready_for_first_build' && /maak.*eerste.*build|first build/i.test(message)) return 'first_build'
   if (!isCodeEmpty(code) && looksLikeMajorRebuild(message)) return 'major_rebuild'

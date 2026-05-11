@@ -141,12 +141,20 @@ describe('project flow helpers', () => {
     majorBuildCount: 0,
   }
 
-  it('routes empty projects to director', () => {
+  it('routes vague empty projects to director', () => {
     expect(inferIntent({
-      message: 'ik wil een game met zombies',
+      message: 'game',
       code: emptyCode,
       workspace: { phase: 'empty', brief: { ...readyBrief, rawIdea: '' }, majorBuildCount: 0 },
     })).toBe('director')
+  })
+
+  it('routes a normal first idea directly to first_build', () => {
+    expect(inferIntent({
+      message: 'ik wil een game met zombies waar je munten verzamelt',
+      code: emptyCode,
+      workspace: { phase: 'empty', brief: { ...readyBrief, rawIdea: '' }, majorBuildCount: 0 },
+    })).toBe('first_build')
   })
 
   it('routes ready first-build action to first_build', () => {

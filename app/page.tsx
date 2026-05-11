@@ -22,7 +22,6 @@ import { Preview } from '@/components/Preview'
 import { ChatAction, ChatMessage, CodeState, CodeUpdateIntent, EditPatch, Language, ProjectBrief, ProjectPhase } from '@/lib/types'
 import {
   createEmptyBrief,
-  getBriefReadiness,
   isCodeEmpty,
   mergeBriefPatch,
   normalizeBrief,
@@ -187,7 +186,6 @@ function EditorContent() {
   const didLoadWorkspaceRef = useRef(false)
 
   const { code, messages, currentProjectId, currentProjectTitle, phase, brief, firstBuildAcceptedAt, majorBuildCount } = workspace
-  const readiness = getBriefReadiness(brief)
   const hasCode = !isCodeEmpty(code)
 
   useEffect(() => {
@@ -691,8 +689,6 @@ function EditorContent() {
               input={chatInput}
               onInputChange={setChatInput}
               usingFallbackModel={usingFallbackModel}
-              phase={phase}
-              readiness={readiness}
               hasCode={hasCode}
             />
           ) : (
