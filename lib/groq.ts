@@ -15,7 +15,7 @@ export { extractTag, extractEditPatches } from './parseAI'
 const client = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
-  timeout: 55000,
+  timeout: 22000,
 })
 
 // Permanently skip paid models after a 402 (out of credits) until server restart.
@@ -51,13 +51,15 @@ export interface AIResponse {
 }
 
 const FREE_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free'
+const FAST_MODEL = 'google/gemini-2.5-flash-lite'
+const BUILD_MODEL = 'google/gemini-2.5-flash'
 
 const MODEL_CHAIN: Record<AIIntent, readonly string[]> = {
-  director: [FREE_MODEL],
-  inspect: ['openai/gpt-5.4-nano', FREE_MODEL],
-  adjust: ['openai/gpt-5.4-nano', 'moonshotai/kimi-k2.5', FREE_MODEL],
-  first_build: ['moonshotai/kimi-k2.5', FREE_MODEL],
-  major_rebuild: ['moonshotai/kimi-k2.5', 'openai/gpt-5.4-mini', FREE_MODEL],
+  director: [FAST_MODEL, FREE_MODEL],
+  inspect: [FAST_MODEL, FREE_MODEL],
+  adjust: [FAST_MODEL, BUILD_MODEL],
+  first_build: [BUILD_MODEL, FAST_MODEL],
+  major_rebuild: [BUILD_MODEL, FAST_MODEL],
 }
 
 const SYSTEM_PROMPTS: Record<AIIntent, string> = {
@@ -544,7 +546,12 @@ async function generateWithModelChain(
       lastError = error
       const status = (error as { status?: number })?.status
       if (status === 402) paidModelAvailable = false
+      if (status === 402 || status === 429 || status === 404) {
+        console.error(`AI model candidate failed (${model}):`, error)
+        continue
+      }
       console.error(`AI model candidate failed (${model}):`, error)
+      break
     }
   }
 
