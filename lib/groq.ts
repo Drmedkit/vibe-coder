@@ -112,8 +112,7 @@ Antwoord ALLEEN met geldig JSON:
   },
   "included": ["wat zit erin"],
   "notIncludedYet": ["wat bewust nog niet"],
-  "nextPolishSuggestions": ["logische volgende verbeteringen"],
-  "image": { "prompt": "English image description", "assetType": "character" }
+  "nextPolishSuggestions": ["logische volgende verbeteringen"]
 }
 
 Regels:
@@ -125,7 +124,7 @@ Regels:
 - Houd de code compact en begrijpelijk voor beginners.
 - Maak UI en interactie af genoeg om meteen te testen.
 - HTML is alleen body-inhoud, geen html/head/body tags.
-- Gebruik image alleen als een asset echt nodig is.
+- Gebruik geen image request in de eerste build. Gebruik CSS, tekst, simpele vormen of bestaande emoji/tekens.
 - Geen markdown, geen tekst buiten JSON.`,
 
   inspect: `Je onderzoekt het project van de student.
@@ -385,6 +384,9 @@ export function parseAndValidateAIResponse(raw: string, intent: AIIntent): {
     }
     if (editPatches.length > 0) {
       errors.push('First Build gebruikt geen editPatches.')
+    }
+    if (imageRequest) {
+      errors.push('First Build gebruikt geen image request.')
     }
   }
 
