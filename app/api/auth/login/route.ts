@@ -7,6 +7,7 @@ import {
   verifyPassword,
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { clearFailedLogins, loginRetryAfterSeconds, recordFailedLogin } from '@/lib/loginThrottle'
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,11 +21,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vul je gebruikersnaam en wachtwoord in.' }, { status: 400 })
     }
 
+    const retryAfter = loginRetryAfterSeconds(normalizedUsername)
+    if (retryAfter > 0) {
+      return NextResponse.json(
+        { error: 'Te veel inlogpogingen. Wacht even en probeer het daarna opnieuw.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      )
+    }
+
     const user = await prisma.user.findUnique({ where: { username: normalizedUsername } })
     if (!user || !(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
+      recordFailedLogin(normalizedUsername)
       return NextResponse.json({ error: 'Gebruikersnaam of wachtwoord klopt niet.' }, { status: 401 })
     }
 
+    clearFailedLogins(normalizedUsername)
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },

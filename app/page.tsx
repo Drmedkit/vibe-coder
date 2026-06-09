@@ -49,6 +49,7 @@ interface WorkspaceState {
 
 interface ChatApiData {
   error?: string
+  retryAfterSeconds?: number
   usingFallback?: boolean
   text?: string
   questions?: unknown
@@ -183,6 +184,8 @@ function EditorContent() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [statusMessage, setStatusMessage] = useState('')
   const [usingFallbackModel, setUsingFallbackModel] = useState(false)
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
+  const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const didLoadWorkspaceRef = useRef(false)
 
   const { code, messages, currentProjectId, currentProjectTitle, phase, brief, firstBuildAcceptedAt, majorBuildCount } = workspace
@@ -193,6 +196,22 @@ function EditorContent() {
     didLoadWorkspaceRef.current = true
     setWorkspace(readInitialWorkspace())
   }, [])
+
+  useEffect(() => {
+    if (!cooldownUntil) return
+    const update = () => {
+      const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setCooldownUntil(null)
+        setCooldownSeconds(0)
+        return
+      }
+      setCooldownSeconds(remaining)
+    }
+    update()
+    const interval = window.setInterval(update, 1000)
+    return () => window.clearInterval(interval)
+  }, [cooldownUntil])
 
   const updateWorkspace = (updater: (current: WorkspaceState) => WorkspaceState) => {
     setWorkspace(current => {
@@ -302,6 +321,7 @@ function EditorContent() {
   }
 
   const handleSendMessage = async (rawText: string, action?: ChatAction) => {
+    if (cooldownUntil && cooldownUntil > Date.now()) return
     const text = rawText.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]{20,}/g, '[afbeelding]')
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -354,6 +374,10 @@ function EditorContent() {
 
       const data = await readJsonResponse(response)
       if (response.status === 429) {
+        const retryAfter = typeof data.retryAfterSeconds === 'number' && data.retryAfterSeconds > 0
+          ? data.retryAfterSeconds
+          : 60
+        setCooldownUntil(Date.now() + retryAfter * 1000)
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -683,6 +707,7 @@ function EditorContent() {
               messages={messages}
               onSendMessage={handleSendMessage}
               isProcessing={isProcessing}
+              cooldownSeconds={cooldownSeconds}
               onApplyCodeUpdate={handleApplyCodeUpdate}
               onApplyPatches={handleApplyPatches}
               currentCode={code}

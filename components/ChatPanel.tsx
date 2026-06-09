@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { BookOpen, Check, Loader2, MessageSquarePlus, RefreshCw, Send, Wand2 } from 'lucide-react'
+import { BookOpen, Check, Loader2, MessageSquarePlus, RefreshCw, Send, Timer, Wand2 } from 'lucide-react'
 import { ChatAction, ChatMessage, CodeState, CodeUpdateIntent, EditPatch, ToolResult } from '@/lib/types'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
   onSendMessage: (message: string, action?: ChatAction) => void
   isProcessing: boolean
+  cooldownSeconds?: number
   onApplyCodeUpdate: (code: Partial<CodeState>, intent?: CodeUpdateIntent) => void
   onApplyPatches: (patches: EditPatch[]) => void
   currentCode: CodeState
@@ -36,6 +37,13 @@ const PROCESSING_HINTS = [
   { afterMs: 30000, text: 'Nog bezig. De AI maakt of controleert meerdere bestanden.' },
   { afterMs: 50000, text: 'Dit duurt lang. Als het stopt, probeer dan een kleinere vraag.' },
 ]
+
+function formatCooldown(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconden`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${minutes}:${String(rest).padStart(2, '0')} minuten`
+}
 
 function buildSrcDoc(code: CodeState): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${code.css}</style></head><body>${code.html}<script>try{${code.javascript.replace(/<\/script/gi, '<\\/script')}}catch(e){console.error(e)}</script></body></html>`
@@ -169,6 +177,7 @@ export function ChatPanel({
   messages,
   onSendMessage,
   isProcessing,
+  cooldownSeconds = 0,
   onApplyCodeUpdate,
   onApplyPatches,
   currentCode,
@@ -180,6 +189,7 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [processingHint, setProcessingHint] = useState(PROCESSING_HINTS[0].text)
+  const isBlocked = isProcessing || cooldownSeconds > 0
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -208,13 +218,13 @@ export function ChatPanel({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isProcessing) return
+    if (!input.trim() || isBlocked) return
     onSendMessage(input)
     onInputChange('')
   }
 
   const sendAction = (message: string, action?: ChatAction) => {
-    if (isProcessing) return
+    if (isBlocked) return
     onInputChange('')
     onSendMessage(message, action)
   }
@@ -336,13 +346,19 @@ export function ChatPanel({
       </div>
 
       <form onSubmit={handleSubmit} className="border-t border-white/10 bg-[#111111] p-3">
+        {cooldownSeconds > 0 && (
+          <div className="mb-2 flex items-center gap-2 rounded-md border border-[#F9CD00]/25 bg-[#F9CD00]/10 px-3 py-2 text-xs text-[#F9CD00]">
+            <Timer size={13} className="shrink-0" />
+            De AI heeft even pauze. Over {formatCooldown(cooldownSeconds)} kun je weer een bericht sturen.
+          </div>
+        )}
         {hasCode && (
           <div className="mb-2 flex flex-wrap gap-2">
             <>
               <button
                 type="button"
                 onClick={() => sendAction('Leg uit hoe dit project werkt en wat ik als volgende kan verbeteren.', 'inspect')}
-                disabled={isProcessing}
+                disabled={isBlocked}
                 className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
               >
                 <BookOpen size={13} />
@@ -351,7 +367,7 @@ export function ChatPanel({
               <button
                 type="button"
                 onClick={() => sendAction('Kijk kritisch naar mijn project en stel de beste kleine verbetering voor.', 'inspect')}
-                disabled={isProcessing}
+                disabled={isBlocked}
                 className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
               >
                 <Wand2 size={13} />
@@ -360,7 +376,7 @@ export function ChatPanel({
               <button
                 type="button"
                 onClick={() => prefillAction('Ik wil een grote wijziging. Behoud: ... Verander: ... Omdat: ...')}
-                disabled={isProcessing}
+                disabled={isBlocked}
                 className="focus-ring flex items-center gap-1.5 rounded-md border border-white/10 bg-[#161616] px-3 py-2 text-xs font-semibold text-white/65 transition hover:text-white active:translate-y-px disabled:opacity-45"
               >
                 <RefreshCw size={13} />
@@ -380,11 +396,11 @@ export function ChatPanel({
               ? 'Vraag om uitleg, een kleine verbetering of een bugfix...'
               : 'Beschrijf wat je wilt maken. De AI maakt een kleine eerste versie.'}
             className="focus-ring min-w-0 flex-1 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-white/25"
-            disabled={isProcessing}
+            disabled={isBlocked}
           />
           <button
             type="submit"
-            disabled={isProcessing || !input.trim()}
+            disabled={isBlocked || !input.trim()}
             className="focus-ring rounded-md bg-[#DD084B] px-4 py-2 text-white transition hover:bg-[#B8063F] active:translate-y-px disabled:opacity-45"
             title="Verstuur"
           >

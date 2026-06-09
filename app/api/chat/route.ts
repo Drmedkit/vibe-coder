@@ -3,7 +3,8 @@ import { generateCodeResponse } from '@/lib/groq'
 import { ChatAction, CodeState, ProjectPhase } from '@/lib/types'
 import { isUnauthorized, requireUser } from '@/lib/auth'
 import { inferIntent, normalizeBrief, phaseFromBriefAndCode } from '@/lib/projectFlow'
-import { checkAIRateLimit, recordAIUsage } from '@/lib/aiLimits'
+import { reserveAIUsage } from '@/lib/aiLimits'
+import { AIQueueBusyError, withAISlot } from '@/lib/aiQueue'
 
 export const maxDuration = 300
 
@@ -53,32 +54,43 @@ export async function POST(request: NextRequest) {
       majorBuildCount: typeof workspace?.majorBuildCount === 'number' ? workspace.majorBuildCount : 0,
     }
     const intent = inferIntent({ message, code, workspace: workspaceContext, action: safeAction })
-    const rateLimit = await checkAIRateLimit(user.id, intent)
+    const reservation = await reserveAIUsage(user.id, intent)
 
-    if (!rateLimit.allowed) {
+    if (!reservation.allowed) {
       return NextResponse.json({
-        error: rateLimit.message,
+        error: reservation.message,
         code: 'AI_RATE_LIMIT',
-        retryAfterSeconds: rateLimit.retryAfterSeconds,
+        retryAfterSeconds: reservation.retryAfterSeconds,
       }, {
         status: 429,
-        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        headers: { 'Retry-After': String(reservation.retryAfterSeconds) },
       })
     }
 
-    const result = await generateCodeResponse({
-      userMessage: message,
-      codeContext: code,
-      chatHistory: history ?? [],
-      workspace: workspaceContext,
-      action: safeAction,
-      ownerId: user.id,
-    })
-    await recordAIUsage(user.id, result.intent).catch(error => {
-      console.error('AI usage logging failed:', error)
-    })
-
-    return NextResponse.json(result)
+    try {
+      const result = await withAISlot(() => generateCodeResponse({
+        userMessage: message,
+        codeContext: code,
+        chatHistory: history ?? [],
+        workspace: workspaceContext,
+        action: safeAction,
+        ownerId: user.id,
+      }))
+      return NextResponse.json(result)
+    } catch (error) {
+      await reservation.release()
+      if (error instanceof AIQueueBusyError) {
+        return NextResponse.json({
+          error: 'Het is nu erg druk met AI-verzoeken in de klas. Wacht een paar tellen en probeer het opnieuw.',
+          code: 'AI_BUSY',
+          retryAfterSeconds: 15,
+        }, {
+          status: 429,
+          headers: { 'Retry-After': '15' },
+        })
+      }
+      throw error
+    }
   } catch (error) {
     if (isUnauthorized(error)) {
       return NextResponse.json({ error: 'Niet ingelogd' }, { status: 401 })

@@ -19,8 +19,11 @@ const client = new OpenAI({
   apiKey: useXAI ? process.env.XAI_API_KEY : process.env.OPENROUTER_API_KEY,
 })
 
-// Permanently skip paid models after a 402 (out of credits) until server restart.
-let paidModelAvailable = true
+// A 402 means the provider credits are exhausted. Skip paid models for a
+// cooldown window instead of permanently, so the app heals itself after a
+// top-up and one student's 402 doesn't degrade the whole class forever.
+const PAID_MODEL_COOLDOWN_MS = 10 * 60 * 1000
+let paidModelsDisabledUntil = 0
 
 export interface CodeContext {
   html: string
@@ -536,7 +539,7 @@ async function generateWithModelChain(
   messages: OpenAI.Chat.ChatCompletionMessageParam[]
 ): Promise<{ result: ParsedAIResponse; usingFallback: boolean }> {
   const configuredChain = useXAI ? [XAI_MODEL] : OPENROUTER_MODEL_CHAIN[intent]
-  const candidates = paidModelAvailable
+  const candidates = Date.now() >= paidModelsDisabledUntil
     ? configuredChain
     : configuredChain.filter(model => model === OPENROUTER_FREE_MODEL)
   const chain = candidates.length > 0 ? candidates : [OPENROUTER_FREE_MODEL]
@@ -552,7 +555,7 @@ async function generateWithModelChain(
     } catch (error: unknown) {
       lastError = error
       const status = (error as { status?: number })?.status
-      if (!useXAI && status === 402) paidModelAvailable = false
+      if (!useXAI && status === 402) paidModelsDisabledUntil = Date.now() + PAID_MODEL_COOLDOWN_MS
       if (status === 402 || status === 429 || status === 404) {
         console.error(`AI model candidate failed (${model}):`, error)
         continue
@@ -629,6 +632,20 @@ export async function generateCodeResponse({
     const { prompt, assetType } = result._generateImage
     delete result._generateImage
 
+    const { reserveImageUsage } = await import('./aiLimits')
+    const reservation = await reserveImageUsage(ownerId).catch(error => {
+      console.error('Image usage reservation failed:', error)
+      return undefined
+    })
+    if (!reservation) {
+      result.text += '\n\n(Afbeelding genereren mislukt, probeer de Assets knop.)'
+      return result
+    }
+    if (!reservation.allowed) {
+      result.text += `\n\n(${reservation.message ?? 'Je hebt je afbeeldingen-limiet voor dit uur bereikt.'})`
+      return result
+    }
+
     try {
       const { prisma } = await import('./prisma')
       const dataUrl = await generateGameAsset(prompt, assetType as 'character' | 'background' | 'item' | 'icon')
@@ -655,6 +672,7 @@ export async function generateCodeResponse({
       const currentHtml = result.codeUpdate?.html ?? codeContext.html
       result.codeUpdate = { ...result.codeUpdate, html: `${currentHtml}\n${imgTag}` }
     } catch (error) {
+      await reservation.release()
       console.error('Image generation failed:', error)
       result.text += '\n\n(Afbeelding genereren mislukt, probeer de Assets knop.)'
     }

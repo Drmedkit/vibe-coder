@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateGameAsset } from '@/lib/imageGeneration'
 import { prisma } from '@/lib/prisma'
 import { isUnauthorized, requireUser } from '@/lib/auth'
+import { reserveImageUsage } from '@/lib/aiLimits'
+import { AIQueueBusyError, withAISlot } from '@/lib/aiQueue'
 
 const VALID_ASSET_TYPES = new Set(['character', 'background', 'item', 'icon'])
 
@@ -20,7 +22,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Onbekend asset type' }, { status: 400 })
     }
 
-    const dataUrl = await generateGameAsset(cleanPrompt, assetType)
+    const reservation = await reserveImageUsage(user.id)
+    if (!reservation.allowed) {
+      return NextResponse.json({
+        error: reservation.message,
+        code: 'AI_RATE_LIMIT',
+        retryAfterSeconds: reservation.retryAfterSeconds,
+      }, {
+        status: 429,
+        headers: { 'Retry-After': String(reservation.retryAfterSeconds) },
+      })
+    }
+
+    let dataUrl: string
+    try {
+      dataUrl = await withAISlot(() => generateGameAsset(cleanPrompt, assetType))
+    } catch (error) {
+      await reservation.release()
+      if (error instanceof AIQueueBusyError) {
+        return NextResponse.json({
+          error: 'Het is nu erg druk met AI-verzoeken. Wacht een paar tellen en probeer het opnieuw.',
+          code: 'AI_BUSY',
+          retryAfterSeconds: 15,
+        }, {
+          status: 429,
+          headers: { 'Retry-After': '15' },
+        })
+      }
+      throw error
+    }
     const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
 
     const asset = await prisma.asset.create({
