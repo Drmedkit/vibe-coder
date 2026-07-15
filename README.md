@@ -1,57 +1,67 @@
-# Vibe Coder
+# Vibe
 
-Een Nederlandse classroom tool voor studenten die webpagina's en kleine games willen bouwen met AI-begeleiding.
+Vibe is a five-minute creation engine for young makers. A student describes one wild idea and gets a polished, interactive product—not a coding tutorial or a chat transcript. Every successful build becomes a real, shareable website.
 
-## Wat studenten kunnen
+## What exists
 
-- Account maken met gebruikersnaam en wachtwoord, zonder e-mail.
-- Registreren met de vaste klascode `h20`.
-- Bouwen met HTML, CSS en JavaScript in een browser-editor.
-- Live preview bekijken met JavaScript foutmeldingen.
-- AI gebruiken in drie modi: Plan, Build en Explain. Plan is een gesprek met vragen en opties, niet een automatisch eindplan.
-- AI-codevoorstellen eerst bekijken en daarna zelf toepassen.
-- Projecten handmatig opslaan, openen, kopieren en verwijderen.
-- Projecten importeren/exporteren als JSON.
-- Game assets genereren met AI en gebruiken in de chat of HTML.
+- One-prompt first builds and prompt-based remixes
+- Preact/TypeScript products compiled inside Cloudflare Workers
+- A curated creative runtime: Motion, Three.js, Chart.js, Howler, Signals, date-fns, Marked, and Phosphor icons
+- Up to three generated visual assets per build
+- Scoped product APIs for structured data, text AI, and image AI
+- Automatic checkpoints, restore, source editing, and rebuild
+- Instantly shareable unlisted links; optional teacher-approved named domains
+- Username/password accounts with no email or personal profile
+- Teacher classes, join codes, review, and publish controls
+- Daily credits, per-product runtime quotas, visitor write limits, moderation gates, and authentication throttling
 
-## Tech stack
+## Architecture
 
-- Next.js 16, React 19, TypeScript
-- Tailwind CSS 4
-- Prisma 7 met PostgreSQL
-- OpenRouter voor chatmodellen
-- Google Imagen via Google AI Studio voor assets
-- CodeMirror 6 voor de editor
+The application runs as one Cloudflare Worker using the OpenNext adapter:
 
-## Lokaal draaien
+- **D1** stores users, classes, projects, source files, checkpoints, build state, capabilities, usage, and tiny app databases.
+- **KV** stores immutable compiled websites and generated images.
+- **Worker assets** ship the self-hosted package runtime; a pure-JavaScript compiler transforms generated TypeScript/JSX inside the Worker.
+- **xAI or OpenRouter** generates source; **Google Imagen** generates artwork.
+- Generated products receive only `window.vibe`, a capability-scoped runtime SDK. They cannot install packages, fetch arbitrary APIs through the platform, or access creator secrets.
+
+## Local development
+
+Requirements: Node.js 20+, npm, and a Cloudflare account authenticated with Wrangler.
 
 ```bash
 npm install
-cp .env.example .env
-npx prisma generate
-npx prisma migrate dev
+cp .env.example .env.local
+npm run cf:migrate:local
 npm run dev
 ```
 
-Open daarna `http://localhost:3000`.
+Open `http://localhost:3000`. Set `VIBE_FAKE_AI=1` for fast deterministic builds without model keys.
 
-## Environment variables
+The project intentionally generates `public/runtime/vendor.js` during `prebuild`. Do not hand-edit it.
 
-```bash
-DATABASE_URL="postgresql://user:pass@host/db"
-POSTGRES_PRISMA_URL="postgresql://user:pass@host/db"
-OPENROUTER_API_KEY="sk-or-v1-..."
-GOOGLE_AI_API_KEY="AIza..."
-CLASS_CODE="h20"
-```
-
-`CLASS_CODE` staat in de app bewust vast op `h20`; de variable blijft in het voorbeeld staan voor documentatie.
-
-## Checks
+## Quality checks
 
 ```bash
-npm test
+npm run typecheck
 npm run lint
-npx tsc --noEmit
+npm test
 npm run build
+npm run preview
 ```
+
+## Production
+
+Cloudflare resources are declared in `wrangler.jsonc`; schema changes live in `migrations/`. See [DEPLOYMENT.md](./DEPLOYMENT.md) for secrets, migrations, deployment, teacher provisioning, custom domains, and rollback.
+
+## Product safety model
+
+- Unlisted products are `noindex`; named public domains require teacher/admin approval.
+- Generated apps are rendered in an opaque-origin iframe sandbox in the studio.
+- Runtime data is schema-scoped, length-limited, moderated, quota-limited, and stripped of control characters.
+- Generated sites receive restrictive CSP, permissions policy, MIME sniffing protection, and no camera/microphone/geolocation access.
+- Session tokens are random, server-hashed, `httpOnly`, `sameSite=lax`, secure in production, and expire after seven days.
+- Passwords use scrypt with per-user salts. Login and registration are rate-limited.
+- API keys stay in Cloudflare encrypted secrets and are never bundled into generated products.
+
+This is a strong beta safety baseline, not a replacement for school policy, teacher supervision, abuse reporting, or a formal privacy/security review before a large rollout.

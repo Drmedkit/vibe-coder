@@ -2,10 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { ArrowRight, KeyRound, UserPlus } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle,
+  Key,
+  Lightning,
+  SpinnerGap,
+  UserPlus,
+} from '@phosphor-icons/react'
 
 type AuthMode = 'login' | 'register'
+
+function BrandMark() {
+  return <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
+}
 
 export default function EnterPage() {
   const [mode, setMode] = useState<AuthMode>('login')
@@ -15,156 +25,73 @@ export default function EnterPage() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const name = process.env.NEXT_PUBLIC_PRODUCT_NAME || 'Vibe'
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError('')
     setIsLoading(true)
-
     try {
-      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
-      const response = await fetch(endpoint, {
+      const response = await fetch(mode === 'login' ? '/api/auth/login' : '/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username.trim(),
-          password,
-          classCode: classCode.trim(),
-        }),
+        body: JSON.stringify({ username: username.trim(), password, classCode: classCode.trim() }),
       })
-
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data.error || 'Inloggen is mislukt.')
-        return
-      }
-
+      const data = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(data.error || 'We could not open the workshop.')
       router.push('/')
       router.refresh()
-    } catch {
-      setError('We konden geen verbinding maken. Probeer het opnieuw.')
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Connection failed. Try again.')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const switchMode = (nextMode: AuthMode) => {
-    setMode(nextMode)
-    setError('')
-  }
-
   return (
-    <main className="min-h-[100dvh] bg-[#0d0d0d] h20-pattern flex items-center justify-center p-4">
-      <section className="relative w-full max-w-5xl grid gap-6 lg:grid-cols-[1.1fr_0.9fr] items-stretch">
-        <div className="hidden lg:flex flex-col justify-between rounded-lg border border-white/10 bg-[#161616]/80 p-8 overflow-hidden">
-          <div>
-            <Image src="/h20-logo-gitw.png" alt="H20 Gaming Impacting The World" width={260} height={46} priority />
-            <p className="mt-10 max-w-[52ch] text-white/65 leading-relaxed">
-              Vibe Coder is de bouwplaats voor webgames en webpagina&apos;s in het leerlab. Maak een account zonder e-mail, bouw in de browser en bewaar je werk wanneer jij klaar bent.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
-              <p className="font-display text-3xl font-black leading-none text-[#F9CD00]">PLAN</p>
-              <p className="mt-2 text-sm text-white/55">Denk eerst na over wat je gaat maken.</p>
-            </div>
-            <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
-              <p className="font-display text-3xl font-black leading-none text-white">BUILD</p>
-              <p className="mt-2 text-sm text-white/55">Laat AI code voorstellen en keur wijzigingen zelf goed.</p>
-            </div>
-          </div>
+    <main className="min-h-[100dvh] bg-[#f2eee5] text-[#171511] lg:grid lg:grid-cols-[1.15fr_.85fr]">
+      <section className="relative hidden min-h-[100dvh] overflow-hidden border-r border-[#171511]/15 p-10 lg:flex lg:flex-col lg:justify-between xl:p-16">
+        <div className="absolute -right-24 top-20 h-96 w-96 rounded-[42%_58%_64%_36%] bg-[#d8ad3b] opacity-85 motion-safe:animate-[spin_26s_linear_infinite]" />
+        <div className="absolute bottom-28 right-16 h-52 w-52 rounded-full border border-[#171511]/20" />
+        <div className="relative flex items-center gap-3 font-bold tracking-[-.03em]"><BrandMark /><span>{name}</span></div>
+        <div className="relative max-w-3xl">
+          <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[.12em] text-[#806821]"><Lightning size={16} weight="fill" /> Five-minute creation engine</p>
+          <h1 className="max-w-[10ch] text-6xl font-semibold leading-[.91] tracking-[-.075em] xl:text-8xl">What will exist before the bell rings?</h1>
+          <p className="mt-8 max-w-xl text-lg leading-relaxed text-[#171511]/60">Start with a rough thought. Leave with a working interactive product, its own data, generated artwork, and a link anyone can open.</p>
         </div>
+        <div className="relative grid max-w-2xl grid-cols-2 gap-px overflow-hidden border border-[#171511]/15 bg-[#171511]/15">
+          {['One prompt starts it', 'Every version is saved', 'AI and images built in', 'A real link at the end'].map(item => (
+            <div key={item} className="flex items-center gap-3 bg-[#f2eee5] p-4 text-sm font-semibold"><CheckCircle size={18} weight="fill" className="text-[#806821]" />{item}</div>
+          ))}
+        </div>
+      </section>
 
-        <div className="relative rounded-lg border border-white/10 bg-[#161616] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <Image src="/h20-logo.png" alt="H20" width={58} height={82} className="h-14 w-auto" priority />
-            <div className="flex rounded-md border border-white/10 bg-black/35 p-1">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={`focus-ring rounded px-3 py-1.5 text-sm font-medium transition ${mode === 'login' ? 'bg-[#DD084B] text-white' : 'text-white/55 hover:text-white'}`}
-              >
-                Inloggen
+      <section className="flex min-h-[100dvh] items-center justify-center p-5 sm:p-10">
+        <div className="w-full max-w-md">
+          <div className="mb-12 flex items-center justify-between lg:hidden"><div className="flex items-center gap-3 font-bold"><BrandMark />{name}</div></div>
+          <div className="mb-9 flex border-b border-[#171511]/15">
+            {(['login', 'register'] as const).map(item => (
+              <button key={item} onClick={() => { setMode(item); setError('') }} className={`relative flex-1 px-3 py-3 text-sm font-semibold transition ${mode === item ? 'text-[#171511]' : 'text-[#171511]/40'}`}>
+                {item === 'login' ? 'Sign in' : 'Join a class'}
+                {mode === item && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[#171511]" />}
               </button>
-              <button
-                type="button"
-                onClick={() => switchMode('register')}
-                className={`focus-ring rounded px-3 py-1.5 text-sm font-medium transition ${mode === 'register' ? 'bg-[#F9CD00] text-black' : 'text-white/55 hover:text-white'}`}
-              >
-                Registreren
-              </button>
-            </div>
+            ))}
           </div>
+          <p className="text-xs font-bold uppercase tracking-[.11em] text-[#806821]">{mode === 'login' ? 'Welcome back' : 'Start making'}</p>
+          <h2 className="mt-3 text-4xl font-semibold tracking-[-.06em]">{mode === 'login' ? 'Open your workshop.' : 'Claim your workbench.'}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-[#171511]/55">{mode === 'login' ? 'Your creations, links, and checkpoints are waiting.' : 'No email or personal profile. Use the class code your teacher gave you.'}</p>
 
-          <div className="mb-6">
-            <p className="font-display text-4xl font-black leading-none text-white">
-              {mode === 'login' ? 'TERUG NAAR JE PROJECT' : 'MAAK JE WERKPLEK'}
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-white/55">
-              {mode === 'login'
-                ? 'Gebruik je gebruikersnaam en wachtwoord. Er is geen herstel via e-mail.'
-                : 'De klascode is h20. Kies daarna zelf een gebruikersnaam en wachtwoord.'}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={submit} className="mt-8 space-y-5">
             {mode === 'register' && (
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-white/75">Klascode</span>
-                <input
-                  type="text"
-                  value={classCode}
-                  onChange={(e) => setClassCode(e.target.value)}
-                  placeholder="h20"
-                  className="focus-ring w-full rounded-md border border-white/10 bg-black/35 px-4 py-3 text-white placeholder:text-white/25"
-                  autoComplete="off"
-                  disabled={isLoading}
-                />
-              </label>
+              <label className="block space-y-2"><span className="text-xs font-bold">Class code</span><input value={classCode} onChange={event => setClassCode(event.target.value)} placeholder="Enter the code" disabled={isLoading} className="w-full rounded-lg border border-[#171511]/18 bg-white/40 px-4 py-3.5 text-sm outline-none transition placeholder:text-[#171511]/25 focus:border-[#171511]/55" /></label>
             )}
-
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-white/75">Gebruikersnaam</span>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="bijvoorbeeld: max_gamebouw"
-                className="focus-ring w-full rounded-md border border-white/10 bg-black/35 px-4 py-3 text-white placeholder:text-white/25"
-                autoComplete="username"
-                autoFocus
-                disabled={isLoading}
-              />
-            </label>
-
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-white/75">Wachtwoord</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="minimaal 6 tekens"
-                className="focus-ring w-full rounded-md border border-white/10 bg-black/35 px-4 py-3 text-white placeholder:text-white/25"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                disabled={isLoading}
-              />
-            </label>
-
-            {error && (
-              <div className="rounded-md border border-[#DD084B]/45 bg-[#DD084B]/10 px-4 py-3 text-sm text-white">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading || !username.trim() || !password || (mode === 'register' && !classCode.trim())}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-md bg-[#DD084B] px-4 py-3 font-semibold text-white transition hover:bg-[#B8063F] active:translate-y-px disabled:opacity-45"
-            >
-              {mode === 'login' ? <KeyRound size={18} /> : <UserPlus size={18} />}
-              {isLoading ? 'Bezig...' : mode === 'login' ? 'Inloggen' : 'Account maken'}
-              <ArrowRight size={18} />
+            <label className="block space-y-2"><span className="text-xs font-bold">Username</span><input value={username} onChange={event => setUsername(event.target.value)} placeholder="3–24 letters or numbers" autoComplete="username" autoFocus disabled={isLoading} className="w-full rounded-lg border border-[#171511]/18 bg-white/40 px-4 py-3.5 text-sm outline-none transition placeholder:text-[#171511]/25 focus:border-[#171511]/55" /></label>
+            <label className="block space-y-2"><span className="text-xs font-bold">Password</span><input type="password" value={password} onChange={event => setPassword(event.target.value)} minLength={mode === 'register' ? 8 : undefined} placeholder="At least 8 characters" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={isLoading} className="w-full rounded-lg border border-[#171511]/18 bg-white/40 px-4 py-3.5 text-sm outline-none transition placeholder:text-[#171511]/25 focus:border-[#171511]/55" /></label>
+            {error && <p className="border-l-2 border-[#ce5c4b] bg-[#ce5c4b]/8 px-3 py-2 text-sm text-[#973e33]">{error}</p>}
+            <button type="submit" disabled={isLoading || !username.trim() || !password || (mode === 'register' && !classCode.trim())} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#171511] px-4 py-3.5 text-sm font-bold text-[#fffaf0] transition hover:-translate-y-0.5 hover:bg-[#302b22] active:translate-y-px disabled:translate-y-0 disabled:opacity-35">
+              {isLoading ? <SpinnerGap className="spin" size={19} /> : mode === 'login' ? <Key size={19} /> : <UserPlus size={19} />}
+              {isLoading ? 'Opening workshop' : mode === 'login' ? 'Enter workshop' : 'Create my account'}
+              {!isLoading && <ArrowRight size={18} />}
             </button>
           </form>
         </div>

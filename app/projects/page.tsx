@@ -1,305 +1,69 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Clock, Copy, FolderOpen, Plus, Trash2 } from 'lucide-react'
-import { ProjectBrief, ProjectPhase } from '@/lib/types'
+import { ArrowLeft, ArrowRight, Globe, LinkSimple, Plus, SpinnerGap, Trash } from '@phosphor-icons/react'
+import { ProjectRecord, UserRole } from '@/lib/v2/types'
 
-interface Project {
-  id: string
-  title: string
-  htmlCode: string
-  cssCode: string
-  jsCode: string
-  messages?: unknown[]
-  phase?: ProjectPhase
-  brief?: ProjectBrief
-  majorBuildCount?: number
-  firstBuildAcceptedAt?: string | null
-  createdAt: string
-  updatedAt: string
-}
+interface ProjectItem extends ProjectRecord { unlistedUrl: string | null; publicUrl: string | null }
 
 export default function ProjectsPage() {
   const router = useRouter()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
-  const [newProjectTitle, setNewProjectTitle] = useState('')
+  const [projects, setProjects] = useState<ProjectItem[]>([])
+  const [user, setUser] = useState<{ username: string; role: UserRole } | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
 
-  const loadProjects = useCallback(async () => {
-    setIsLoading(true)
-    setError('')
-
-    try {
-      const response = await fetch('/api/projects')
-      if (response.status === 401) {
-        router.push('/enter')
-        return
-      }
-
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data.error || 'Projecten laden is mislukt.')
-        return
-      }
-
-      setProjects(data.projects)
-    } catch {
-      setError('Projecten laden is mislukt.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [router])
-
-  useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
-
-  const openInEditor = (project: Project, fork = false) => {
-    sessionStorage.setItem('vibe_open_project', JSON.stringify({
-      projectId: fork ? null : project.id,
-      title: fork ? `${project.title} kopie` : project.title,
-      code: {
-        html: project.htmlCode,
-        css: project.cssCode,
-        javascript: project.jsCode,
-      },
-      messages: fork ? [] : project.messages ?? [],
-      phase: project.phase,
-      brief: project.brief,
-      majorBuildCount: project.majorBuildCount ?? 0,
-      firstBuildAcceptedAt: project.firstBuildAcceptedAt,
-    }))
-    router.push('/')
-  }
-
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!newProjectTitle.trim()) {
-      setError('Voer een titel in.')
-      return
-    }
-
-    setIsCreating(true)
-    try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newProjectTitle.trim(),
-          htmlCode: '',
-          cssCode: '',
-          jsCode: '',
-          messages: [],
-          phase: 'empty',
-          brief: {
-            rawIdea: '',
-            mustHaves: [],
-            styleNotes: [],
-            constraints: [],
-            confirmedChoices: [],
-            unresolvedQuestions: [],
-          },
-          majorBuildCount: 0,
-        }),
+  const load = () => {
+    fetch('/api/v2/projects', { cache: 'no-store' })
+      .then(async response => {
+        const data = await response.json() as { error?: string; projects?: ProjectItem[]; user?: { username: string; role: UserRole } }
+        if (!response.ok) throw new Error(data.error || 'Creations could not be loaded.')
+        setProjects(data.projects || [])
+        setUser(data.user || null)
       })
-
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data.error || 'Project maken is mislukt.')
-        return
-      }
-
-      openInEditor(data.project)
-    } catch {
-      setError('Project maken is mislukt.')
-    } finally {
-      setIsCreating(false)
-    }
+      .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Creations could not be loaded.'))
+      .finally(() => setLoading(false))
   }
 
-  const handleDeleteProject = async () => {
-    if (!deleteTarget) return
+  useEffect(load, [])
 
-    try {
-      const response = await fetch(`/api/projects/${deleteTarget.id}`, { method: 'DELETE' })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        setError(data.error || 'Project verwijderen is mislukt.')
-        return
-      }
-
-      setProjects(prev => prev.filter(project => project.id !== deleteTarget.id))
-      setDeleteTarget(null)
-    } catch {
-      setError('Project verwijderen is mislukt.')
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('nl-NL', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+  const remove = async (project: ProjectItem) => {
+    if (!window.confirm(`Delete “${project.title}” and all of its checkpoints?`)) return
+    const response = await fetch(`/api/v2/projects/${project.id}`, { method: 'DELETE' })
+    if (response.ok) setProjects(current => current.filter(item => item.id !== project.id))
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#0d0d0d] h20-square-texture">
-      <header className="border-b border-white/10 bg-[#111111]/95 px-4 py-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <button onClick={() => router.push('/')} className="focus-ring flex items-center gap-3 rounded-md">
-            <Image src="/h20-logo.png" alt="H20" width={38} height={54} className="h-10 w-auto" />
-            <div className="text-left">
-              <p className="font-display text-2xl font-black leading-none text-white">PROJECTEN</p>
-              <p className="text-xs text-white/45">Jouw opgeslagen werk</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setShowCreateForm(value => !value)}
-            className="focus-ring flex items-center gap-2 rounded-md bg-[#F9CD00] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#e8bd00] active:translate-y-px"
-          >
-            <Plus size={16} />
-            Nieuw project
-          </button>
+    <main className="min-h-[100dvh] bg-[#f2eee5] text-[#171511]">
+      <header className="border-b border-[#171511]/15 px-5 py-4 lg:px-10">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4">
+          <button onClick={() => router.push('/')} className="flex items-center gap-2 text-sm font-bold"><ArrowLeft size={18} />Workshop</button>
+          <div className="text-right"><p className="text-sm font-bold">{user?.username}</p><p className="text-[10px] uppercase tracking-[.1em] text-[#171511]/45">{user?.role}</p></div>
         </div>
       </header>
-
-      <section className="mx-auto max-w-7xl px-4 py-6">
-        {showCreateForm && (
-          <form onSubmit={handleCreateProject} className="mb-6 rounded-lg border border-white/10 bg-[#161616] p-4">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-white/70">Projectnaam</span>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
-                  value={newProjectTitle}
-                  onChange={(e) => setNewProjectTitle(e.target.value)}
-                  placeholder="Bijvoorbeeld: Space runner"
-                  className="focus-ring min-w-0 flex-1 rounded-md border border-white/10 bg-black/35 px-4 py-2 text-white placeholder:text-white/25"
-                  disabled={isCreating}
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="focus-ring rounded-md bg-[#DD084B] px-5 py-2 font-semibold text-white transition hover:bg-[#B8063F] active:translate-y-px disabled:opacity-45"
-                >
-                  {isCreating ? 'Maken...' : 'Aanmaken'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowCreateForm(false); setError(''); setNewProjectTitle('') }}
-                  className="focus-ring rounded-md border border-white/10 px-4 py-2 font-semibold text-white/70 transition hover:bg-white/8 hover:text-white"
-                >
-                  Annuleren
-                </button>
-              </div>
-            </label>
-          </form>
-        )}
-
-        {error && (
-          <div className="mb-4 rounded-md border border-[#DD084B]/45 bg-[#DD084B]/10 px-4 py-3 text-sm text-white">
-            {error}
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="grid gap-3">
-            {[0, 1, 2].map(item => (
-              <div key={item} className="h-24 animate-pulse rounded-lg border border-white/10 bg-[#161616]" />
-            ))}
-          </div>
+      <section className="mx-auto max-w-[1400px] px-5 py-12 lg:px-10 lg:py-20">
+        <div className="flex flex-col gap-8 border-b border-[#171511]/15 pb-10 sm:flex-row sm:items-end sm:justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-[.1em] text-[#806821]">Your worlds</p><h1 className="mt-3 text-5xl font-semibold tracking-[-.07em] sm:text-7xl">Keep what matters.<br />Remix the rest.</h1></div>
+          <button onClick={() => router.push('/')} className="flex w-max items-center gap-2 rounded-lg bg-[#171511] px-5 py-3 text-sm font-bold text-[#fffaf0]"><Plus size={18} />New creation</button>
+        </div>
+        {error && <p className="mt-6 border-l-2 border-[#ce5c4b] px-3 text-sm text-[#973e33]">{error}</p>}
+        {loading ? (
+          <div className="flex min-h-64 items-center justify-center"><SpinnerGap className="spin" size={26} /></div>
         ) : projects.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/12 bg-[#161616] p-12 text-center">
-            <p className="font-display text-3xl font-black leading-none text-white">NOG GEEN PROJECTEN</p>
-            <p className="mt-3 text-white/45">Maak je eerste project of ga terug naar de editor en sla je draft op.</p>
-          </div>
+          <button onClick={() => router.push('/')} className="mt-10 flex w-full items-center justify-between border-y border-[#171511]/15 py-8 text-left"><div><strong className="text-2xl tracking-[-.04em]">Make your first thing</strong><p className="mt-2 text-sm text-[#171511]/50">One idea is enough to start.</p></div><ArrowRight size={24} /></button>
         ) : (
-          <div className="grid gap-3">
-            {projects.map(project => (
-              <article key={project.id} className="rounded-lg border border-white/10 bg-[#161616] p-4 transition hover:border-[#F9CD00]/45">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <h2 className="truncate text-lg font-semibold text-white">{project.title}</h2>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40">
-                      <span>{project.phase === 'built' || project.phase === 'polishing' ? 'Gebouwd' : 'Idee vormen'}</span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={13} />
-                        Aangemaakt: {formatDate(project.createdAt)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={13} />
-                        Bijgewerkt: {formatDate(project.updatedAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => openInEditor(project)}
-                      className="focus-ring flex items-center gap-2 rounded-md bg-[#F9CD00] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#e8bd00] active:translate-y-px"
-                    >
-                      <FolderOpen size={16} />
-                      Openen
-                    </button>
-                    <button
-                      onClick={() => openInEditor(project, true)}
-                      className="focus-ring flex items-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white active:translate-y-px"
-                    >
-                      <Copy size={16} />
-                      Kopie
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(project)}
-                      className="focus-ring flex items-center gap-2 rounded-md border border-[#DD084B]/35 bg-[#DD084B]/10 px-4 py-2 text-sm font-semibold text-[#ff8db2] transition hover:bg-[#DD084B]/16 active:translate-y-px"
-                    >
-                      <Trash2 size={16} />
-                      Verwijderen
-                    </button>
-                  </div>
-                </div>
+          <div className="mt-2">
+            {projects.map((project, index) => (
+              <article key={project.id} className="grid gap-5 border-b border-[#171511]/15 py-7 transition hover:bg-white/25 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:items-center sm:px-3">
+                <span className="font-mono text-xs text-[#171511]/30">{String(index + 1).padStart(2, '0')}</span>
+                <button onClick={() => router.push(`/?project=${project.id}`)} className="min-w-0 text-left"><h2 className="truncate text-2xl font-semibold tracking-[-.045em]">{project.title}</h2><p className="mt-1 max-w-2xl truncate text-sm text-[#171511]/50">{project.summary || 'A blank project waiting for its first build.'}</p><div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[.08em]"><span className="border border-[#171511]/15 px-2 py-1">{project.status}</span>{project.publicUrl ? <span className="flex items-center gap-1 border border-[#806821]/30 px-2 py-1 text-[#806821]"><Globe size={12} />public</span> : project.unlistedUrl ? <span className="flex items-center gap-1 border border-[#171511]/15 px-2 py-1"><LinkSimple size={12} />unlisted</span> : null}</div></button>
+                <div className="flex items-center gap-2"><button onClick={() => router.push(`/?project=${project.id}`)} className="flex items-center gap-2 rounded-lg bg-[#171511] px-4 py-2.5 text-xs font-bold text-[#fffaf0]">Open <ArrowRight size={15} /></button><button onClick={() => remove(project)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#171511]/15 text-[#171511]/45 transition hover:border-[#ce5c4b]/40 hover:text-[#973e33]" title="Delete"><Trash size={16} /></button></div>
               </article>
             ))}
           </div>
         )}
       </section>
-
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg border border-white/10 bg-[#161616] p-5">
-            <h2 className="text-lg font-semibold text-white">Project verwijderen?</h2>
-            <p className="mt-2 text-sm text-white/55">
-              Je verwijdert <span className="text-white">{deleteTarget.title}</span>. Dit kan niet worden teruggedraaid.
-            </p>
-            <div className="mt-5 flex gap-2">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="focus-ring flex-1 rounded-md border border-white/10 px-4 py-2 font-semibold text-white/70 transition hover:bg-white/8 hover:text-white"
-              >
-                Annuleren
-              </button>
-              <button
-                onClick={handleDeleteProject}
-                className="focus-ring flex-1 rounded-md bg-[#DD084B] px-4 py-2 font-semibold text-white transition hover:bg-[#B8063F] active:translate-y-px"
-              >
-                Verwijderen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   )
 }

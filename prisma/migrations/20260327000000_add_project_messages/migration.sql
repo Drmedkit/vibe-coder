@@ -1,1 +1,0 @@
-ALTER TABLE "Project" ADD COLUMN "messages" JSONB NOT NULL DEFAULT '[]';

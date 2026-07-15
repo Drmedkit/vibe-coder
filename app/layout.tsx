@@ -19,8 +19,8 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Vibe Coder | H20 Educatie",
-  description: "Bouw webpagina's en kleine games met AI-begeleiding in de klas.",
+  title: "Vibe — Make something impossible",
+  description: "Turn one wild idea into a real, interactive website in five minutes.",
 };
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="nl">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} antialiased`}
       >

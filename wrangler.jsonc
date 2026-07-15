@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vibe",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "vibe"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vibe-production",
+      "database_id": "34e31658-bcb3-4880-bc7f-ef13d1147e41"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "VIBE_ARTIFACTS",
+      "id": "caf0315cd5674896950d2f99b1eccdb6"
+    }
+  ],
+  "vars": {
+    "NEXTJS_ENV": "production",
+    "NEXT_PUBLIC_PRODUCT_NAME": "Vibe"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

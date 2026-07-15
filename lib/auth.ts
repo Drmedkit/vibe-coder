@@ -1,19 +1,28 @@
 import { cookies } from 'next/headers'
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
-import { prisma } from '@/lib/prisma'
+import { makeId, nowIso } from '@/lib/sqlite'
+import { getDatabase } from '@/lib/cloudflare'
+import { UserRole } from '@/lib/v2/types'
 
 const scrypt = promisify(scryptCallback)
 
 export const SESSION_COOKIE = 'vibe_session'
-export const CLASS_CODE = 'h20'
-
 const SESSION_DAYS = 7
 const SESSION_MAX_AGE = 60 * 60 * 24 * SESSION_DAYS
 
 export interface AuthUser {
   id: string
   username: string
+  role: UserRole
+  classId: string | null
+}
+
+interface UserRow {
+  id: string
+  username: string
+  role: UserRole
+  class_id: string | null
 }
 
 export function normalizeUsername(username: string): string {
@@ -25,11 +34,14 @@ export function isValidUsername(username: string): boolean {
 }
 
 export function isValidPassword(password: string): boolean {
-  return password.length >= 6 && password.length <= 128
+  return password.length >= 8 && password.length <= 128
 }
 
-export function isValidClassCode(code: string): boolean {
-  return code.trim().toLowerCase() === CLASS_CODE
+export async function isValidClassCode(code: string): Promise<boolean> {
+  const found = await (await getDatabase())
+    .prepare('SELECT 1 AS ok FROM classes WHERE join_code = ? AND is_active = 1')
+    .bind(code.trim().toLowerCase()).first()
+  return Boolean(found)
 }
 
 export async function hashPassword(password: string, salt = randomBytes(16).toString('hex')) {
@@ -65,11 +77,13 @@ export function createSessionCookieOptions() {
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('base64url')
   const tokenHash = hashSessionToken(token)
-  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000)
+  const createdAt = nowIso()
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString()
 
-  await prisma.session.create({
-    data: { userId, tokenHash, expiresAt },
-  })
+  await (await getDatabase()).prepare(`
+    INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(makeId('session'), userId, tokenHash, createdAt, expiresAt).run()
 
   return token
 }
@@ -80,19 +94,29 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   if (!token) return null
 
   const tokenHash = hashSessionToken(token)
-  const session = await prisma.session.findUnique({
-    where: { tokenHash },
-    include: { user: { select: { id: true, username: true } } },
-  })
+  const db = await getDatabase()
+  const session = await db.prepare(`
+    SELECT users.id, users.username, users.role,
+      (SELECT class_id FROM class_memberships WHERE user_id = users.id ORDER BY created_at LIMIT 1) AS class_id,
+      sessions.expires_at
+    FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token_hash = ?
+  `).bind(tokenHash).first<UserRow & { expires_at: string }>()
 
   if (!session) return null
 
-  if (session.expiresAt.getTime() <= Date.now()) {
-    await prisma.session.delete({ where: { tokenHash } }).catch(() => undefined)
+  if (new Date(session.expires_at).getTime() <= Date.now()) {
+    await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run()
     return null
   }
 
-  return session.user
+  return {
+    id: session.id,
+    username: session.username,
+    role: session.role,
+    classId: session.class_id,
+  }
 }
 
 export async function requireUser(): Promise<AuthUser> {
@@ -109,12 +133,25 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof Error && error.name === 'UnauthorizedError'
 }
 
+export async function requireRole(...roles: UserRole[]): Promise<AuthUser> {
+  const user = await requireUser()
+  if (!roles.includes(user.role)) {
+    const error = new Error('Forbidden')
+    error.name = 'ForbiddenError'
+    throw error
+  }
+  return user
+}
+
+export function isForbidden(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ForbiddenError'
+}
+
 export async function destroyCurrentSession(): Promise<void> {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
   if (!token) return
 
-  await prisma.session
-    .delete({ where: { tokenHash: hashSessionToken(token) } })
-    .catch(() => undefined)
+  await (await getDatabase()).prepare('DELETE FROM sessions WHERE token_hash = ?')
+    .bind(hashSessionToken(token)).run()
 }
